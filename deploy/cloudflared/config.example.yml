@@ -1,0 +1,9 @@
+# Cloudflare Tunnel 配置模板 —— 复制为 config.yml 并填入自己的信息
+# 详细步骤见同目录 README.md
+tunnel: <替换为 cloudflared tunnel create 返回的 UUID>
+credentials-file: <替换为凭证 json 路径，如 /root/.cloudflared/<UUID>.json>
+
+ingress:
+  - hostname: panel.你的域名.com        # 换成你在 Cloudflare 路由的子域名
+    service: http://localhost:8000       # 面板后端端口
+  - service: http_status:404

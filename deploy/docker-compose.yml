@@ -1,0 +1,14 @@
+services:
+  panel:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: laicai-panel
+    volumes:
+      # 实验数据：LaiCai 导出的 experiment.json 放进 backend/data/experiments/
+      - ../backend/data:/data
+    ports:
+      - "8000:8000"
+    restart: always
+    environment:
+      - EXPERIMENTS_DIR=/data/experiments

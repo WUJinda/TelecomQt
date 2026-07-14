@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>来财 · 策略协作面板</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --border:#2a2f3a;
+      --text:#e6e8eb; --muted:#8b93a1; --accent:#4f9dff;
+      --pos:#e5484d; --neg:#30a46c;            /* 红涨绿跌 */
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;background:var(--bg);color:var(--text);
+      font:14px/1.6 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+    a{color:var(--accent);text-decoration:none}
+    header.top{display:flex;align-items:center;gap:12px;padding:14px 20px;
+      border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:10}
+    header.top .title{font-size:17px;font-weight:600}
+    header.top .badge{font-size:11px;color:var(--muted);border:1px solid var(--border);
+      padding:1px 7px;border-radius:10px}
+    nav.tabs{display:flex;gap:4px;margin-left:16px}
+    nav.tabs button{background:none;border:none;color:var(--muted);cursor:pointer;
+      padding:6px 12px;border-radius:8px;font-size:14px}
+    nav.tabs button.active{background:var(--panel2);color:var(--text)}
+    main{max-width:1100px;margin:0 auto;padding:20px}
+    .muted{color:var(--muted)}
+    .pos{color:var(--pos)} .neg{color:var(--neg)}
+
+    /* 指标卡 */
+    .metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin:14px 0}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .card .k{font-size:12px;color:var(--muted)}
+    .card .v{font-size:20px;font-weight:600;margin-top:4px}
+    @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
+
+    /* 表格 */
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}
+    th{color:var(--muted);font-weight:500;text-align:right;background:var(--panel)}
+    th.l,td.l{text-align:left}
+    tbody tr{cursor:pointer}
+    tbody tr:hover{background:var(--panel2)}
+    .wrap{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:14px 0}
+    .wrap .hd{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .pill{font-size:12px;color:var(--text);background:var(--panel2);border:1px solid var(--border);
+      padding:2px 9px;border-radius:12px}
+
+    button.btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);
+      padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+    button.btn:hover{border-color:var(--accent)}
+    select,option{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+      padding:5px 8px;border-radius:8px}
+    #chart{width:100%;height:280px}
+    details{margin:8px 0}
+    details summary{cursor:pointer;color:var(--muted)}
+    .empty{text-align:center;color:var(--muted);padding:50px 0}
+    .skel{color:var(--muted);padding:30px 0;text-align:center}
+    .note{color:var(--muted);font-size:12px;margin-top:18px;border-top:1px dashed var(--border);padding-top:12px}
+  </style>
+</head>
+<body>
+<div x-data="panel">
+  <header class="top">
+    <span class="title">📈 来财 · 策略协作面板</span>
+    <span class="badge">v0.1</span>
+    <nav class="tabs">
+      <button :class="tab==='reports' && 'active'" @click="tab='reports'">回测报告</button>
+      <button :class="tab==='ideas' && 'active'" @click="tab='ideas'">策略想法</button>
+      <button :class="tab==='plans' && 'active'" @click="tab='plans'">交易计划</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- ============ 报告 ============ -->
+    <section x-show="tab==='reports'">
+
+      <!-- 列表 -->
+      <template x-if="tab==='reports' && !current">
+        <div>
+          <h3 style="margin:6px 0">回测实验</h3>
+          <div class="wrap" style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th class="l">策略</th><th>生成时间</th><th>方向</th>
+                  <th>总盈亏</th><th>胜率</th><th>笔数</th><th>有交易品种</th><th>最大回撤</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="e in experiments" :key="e.experiment_id">
+                  <tr @click="open(e.experiment_id)">
+                    <td class="l" x-text="e.strategy_name"></td>
+                    <td x-text="fmtTime(e.generated_at)" class="muted"></td>
+                    <td x-text="dirLabel(e.direction)"></td>
+                    <td :class="pnlClass(e.total_pnl)" x-text="fmtMoney(e.total_pnl)"></td>
+                    <td x-text="e.win_rate==null?'—':e.win_rate+'%'"></td>
+                    <td x-text="e.total_trades ?? '—'"></td>
+                    <td x-text="e.instruments_with_trades ?? '—'"></td>
+                    <td :class="negClass(e.max_drawdown)" x-text="fmtMoney(e.max_drawdown)"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+          <div x-show="!loadingList && experiments.length===0" class="empty">还没有回测报告。把 experiment.json 放进 backend/data/experiments/ 后刷新。</div>
+          <div x-show="loadingList" class="skel">加载中…</div>
+        </div>
+      </template>
+
+      <!-- 详情 -->
+      <template x-if="tab==='reports' && current">
+        <div>
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <button class="btn" @click="back()">← 返回列表</button>
+            <h3 style="margin:0" x-text="current.strategy_name"></h3>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span class="pill" x-text="fmtTime(current.generated_at)"></span>
+            <span class="pill" x-text="dirLabel(current.direction)"></span>
+            <span class="pill" x-show="current.mode" x-text="'模式: '+current.mode"></span>
+          </div>
+
+          <div style="display:flex;gap:6px;margin:12px 0">
+            <button class="btn" :style="subtab==='overview' && 'background:var(--accent);border-color:var(--accent);color:#fff'" @click="switchSub('overview')">📊 总览</button>
+            <button class="btn" :style="subtab==='replay' && 'background:var(--accent);border-color:var(--accent);color:#fff'" @click="switchSub('replay')">🔍 逐笔复盘</button>
+          </div>
+
+          <!-- ===== 总览 ===== -->
+          <div x-show="subtab==='overview'">
+          <div class="metrics">
+            <div class="card"><div class="k">总盈亏</div><div class="v" :class="pnlClass(s().total_pnl)" x-text="fmtMoney(s().total_pnl)"></div></div>
+            <div class="card"><div class="k">总收益率</div><div class="v" :class="pnlClass(s().total_return_rate)" x-text="(s().total_return_rate??0)+'%'"></div></div>
+            <div class="card"><div class="k">胜率</div><div class="v" x-text="(s().win_rate??0)+'%'"></div></div>
+            <div class="card"><div class="k">交易笔数</div><div class="v" x-text="s().total_trades??0"></div></div>
+            <div class="card"><div class="k">最大回撤</div><div class="v" :class="negClass(s().max_drawdown)" x-text="fmtMoney(s().max_drawdown)"></div></div>
+            <div class="card"><div class="k">有交易品种</div><div class="v" x-text="(s().instruments_with_trades??0)+' / '+(s().instruments_tested??0)"></div></div>
+          </div>
+
+          <!-- 收益曲线 -->
+          <div class="wrap">
+            <div class="hd"><b>累计盈亏曲线</b><span class="muted" style="font-size:12px">（按平仓日累计净盈亏）</span></div>
+            <div id="chart" x-ref="chart"></div>
+          </div>
+
+          <!-- 品种 + 交易明细 -->
+          <div class="wrap">
+            <div class="hd">
+              <b>逐笔交易明细</b>
+              <select x-model.number="selectedInst" @change="renderChart()">
+                <template x-for="(inst,i) in current.instruments" :key="inst.instrument">
+                  <option :value="i" x-text="inst.instrument + ((inst.trade_count||0)>0 ? '（'+inst.trade_count+'笔）':'（无交易）')"></option>
+                </template>
+              </select>
+              <span class="muted" style="font-size:12px" x-show="curInst()">交易所 <span x-text="curInst()?.exchange"></span> · 周期 <span x-text="curInst()?.kline_style"></span> · 乘数 <span x-text="curInst()?.volume_multiple"></span></span>
+            </div>
+            <div style="overflow-x:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="l">#</th><th class="l">方向</th>
+                    <th>开仓日期</th><th>开仓价</th><th>平仓日期</th><th>平仓价</th>
+                    <th>手数</th><th>持仓天</th><th>保证金</th><th>点数</th><th>净盈亏</th><th>收益率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(t,i) in (curInst()?.trades||[])" :key="i">
+                    <tr>
+                      <td class="l" x-text="t.no||i+1"></td>
+                      <td class="l" x-text="dirLabel(current.direction)"></td>
+                      <td x-text="t.open_date"></td><td x-text="t.open_price"></td>
+                      <td x-text="t.close_date"></td><td x-text="t.close_price"></td>
+                      <td x-text="t.volume"></td><td x-text="t.holding_days"></td>
+                      <td x-text="fmtMoney(t.margin)"></td><td x-text="t.points"></td>
+                      <td :class="pnlClass(t.net_pnl)" x-text="fmtMoney(t.net_pnl)"></td>
+                      <td :class="pnlClass(t.return_rate)" x-text="(t.return_rate??0)+'%'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="!(curInst()?.trades||[]).length" class="empty">该品种本轮无交易。</div>
+            </div>
+          </div>
+
+          <details>
+            <summary>策略参数</summary>
+            <pre style="color:var(--muted);font-size:12px" x-text="JSON.stringify(current.params||{},null,2)"></pre>
+          </details>
+
+          <div class="note">说明：收益曲线按平仓日累计；明细里的盈亏已扣手续费。颜色遵循期货「红涨绿跌」。</div>
+          </div><!-- /总览 -->
+
+          <!-- ===== 逐笔复盘 ===== -->
+          <div x-show="subtab==='replay'">
+            <div class="wrap">
+              <div class="hd">
+                <b>交易选择器</b>
+                <select x-model.number="selectedTrade" @change="$nextTick(()=>renderKline())">
+                  <template x-for="(it,i) in allTrades()" :key="i">
+                    <option :value="i" x-text="it.label"></option>
+                  </template>
+                </select>
+                <span class="muted" style="font-size:12px" x-show="allTrades().length">共 <span x-text="allTrades().length"></span> 笔交易</span>
+              </div>
+            </div>
+
+            <div x-show="!allTrades().length" class="empty">本报告没有交易记录。</div>
+            <div x-show="allTrades().length && !curChart()" class="empty">该笔交易没有 K 线复盘数据（experiment.json 未提供 chart 字段）。</div>
+
+            <div x-show="curChart()">
+              <div x-show="curChart()?.markers.no_stop_loss" class="note" style="color:var(--pos);border-color:var(--pos)">⚠ 本策略不设止损，止盈 = 布林中轨（价格回到中轨即平仓）</div>
+              <div class="wrap">
+                <div class="hd"><b x-text="replayTitle()"></b></div>
+                <div id="kchart" x-ref="kchart" style="width:100%;height:400px"></div>
+              </div>
+              <div class="wrap" style="padding:14px;line-height:1.9">
+                <div x-text="curChart()?.summary"></div>
+                <div class="muted" style="margin-top:10px;font-size:12px">
+                  开仓时带宽分位 <b style="color:var(--text)" x-text="(curChart()?.bw_pct_at_open ?? '—') + '%'"></b> ·
+                  触发位(中下轨中间) <span style="color:var(--text)" x-text="curChart()?.markers.trigger_line"></span> ·
+                  止盈(开仓时中轨) <span style="color:var(--text)" x-text="curChart()?.markers.take_profit"></span> ·
+                  左峰 H_left <span style="color:var(--text)" x-text="curChart()?.markers.h_left?.price"></span>
+                </div>
+              </div>
+            </div>
+          </div><!-- /复盘 -->
+        </div>
+      </template>
+    </section>
+
+    <!-- ============ 想法（M2）============ -->
+    <section x-show="tab==='ideas'" class="empty">
+      <h3>策略想法</h3>
+      <p>这部分（朋友记录策略点子 → 存成结构化 spec）在 M2 上线。</p>
+    </section>
+
+    <!-- ============ 计划（M2）============ -->
+    <section x-show="tab==='plans'" class="empty">
+      <h3>交易计划</h3>
+      <p>这部分（品种/方向/止损/目标的看板式管理）在 M2 上线。</p>
+    </section>
+  </main>
+</div>
+
+<script>
+  document.addEventListener('alpine:init', () => {
+    Alpine.data('panel', () => ({
+      tab: 'reports',
+      subtab: 'overview',
+      experiments: [],
+      loadingList: false,
+      current: null,
+      loadingDetail: false,
+      selectedInst: 0,
+      selectedTrade: 0,
+      _chart: null,
+      _kchart: null,
+
+      async init() {
+        await this.loadList();
+        window.addEventListener('resize', () => { if (this._chart) this._chart.resize(); if (this._kchart) this._kchart.resize(); });
+      },
+      async loadList() {
+        this.loadingList = true;
+        try {
+          const r = await fetch('/api/reports');
+          this.experiments = await r.json();
+        } catch (e) { console.error(e); }
+        this.loadingList = false;
+      },
+      async open(id) {
+        this.loadingDetail = true;
+        try {
+          const r = await fetch('/api/reports/' + encodeURIComponent(id));
+          this.current = await r.json();
+          const idx = (this.current.instruments || []).findIndex(i => (i.trade_count || 0) > 0);
+          this.selectedInst = idx >= 0 ? idx : 0;
+          this.subtab = 'overview';
+          this.selectedTrade = 0;
+          this.$nextTick(() => this.renderChart());
+        } catch (e) { console.error(e); }
+        this.loadingDetail = false;
+      },
+      back() {
+        if (this._chart) { this._chart.dispose(); this._chart = null; }
+        if (this._kchart) { this._kchart.dispose(); this._kchart = null; }
+        this.current = null;
+      },
+      s() { return (this.current && this.current.summary) || {}; },
+      curInst() { return this.current && this.current.instruments && this.current.instruments[this.selectedInst]; },
+
+      renderChart() {
+        const el = this.$refs.chart;
+        if (!el || !this.current) return;
+        const trades = [];
+        for (const inst of this.current.instruments) {
+          for (const t of (inst.trades || [])) {
+            trades.push({ date: t.close_date, pnl: t.net_pnl || 0 });
+          }
+        }
+        trades.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+        let cum = 0;
+        const xs = [], ys = [];
+        for (const t of trades) { cum += t.pnl; xs.push(t.date); ys.push(+cum.toFixed(2)); }
+        if (this._chart) this._chart.dispose();
+        this._chart = echarts.init(el, 'dark');
+        this._chart.setOption({
+          backgroundColor: 'transparent',
+          grid: { left: 64, right: 20, top: 20, bottom: 40 },
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'category', data: xs, axisLabel: { color: '#8b93a1' } },
+          yAxis: { type: 'value', name: '累计盈亏', axisLabel: { color: '#8b93a1' }, splitLine: { lineStyle: { color: '#2a2f3a' } } },
+          series: [{
+            type: 'line', step: 'end', showSymbol: true, symbolSize: 6,
+            data: ys, lineStyle: { width: 2, color: '#e5484d' },
+            areaStyle: { opacity: 0.12, color: '#e5484d' }
+          }]
+        });
+      },
+
+      switchSub(s) {
+        this.subtab = s;
+        if (s === 'overview') this.$nextTick(() => this.renderChart());
+        else this.$nextTick(() => this.renderKline());
+      },
+
+      allTrades() {
+        if (!this.current) return [];
+        const out = [];
+        for (let ii = 0; ii < (this.current.instruments || []).length; ii++) {
+          const inst = this.current.instruments[ii];
+          for (let ti = 0; ti < (inst.trades || []).length; ti++) {
+            const t = inst.trades[ti];
+            const od = (t.open_date || '').slice(5), cd = (t.close_date || '').slice(5);
+            out.push({
+              instIdx: ii, tradeIdx: ti, inst, trade: t,
+              label: `${inst.instrument} · #${t.no || (ti + 1)} · ${od}→${cd} · ${this.fmtMoney(t.net_pnl)}`,
+            });
+          }
+        }
+        return out;
+      },
+      curChart() {
+        const at = this.allTrades();
+        const it = at[this.selectedTrade];
+        return (it && it.trade && it.trade.chart) || null;
+      },
+      replayTitle() {
+        const at = this.allTrades();
+        const it = at[this.selectedTrade];
+        if (!it) return '';
+        return `${it.inst.instrument} · ${it.inst.kline_style} · ${this.dirLabel(this.current.direction)}`;
+      },
+
+      renderKline() {
+        const el = this.$refs.kchart;
+        if (!el) return;
+        const at = this.allTrades();
+        if (!at.length) return;
+        const item = at[this.selectedTrade];
+        const chart = item && item.trade && item.trade.chart;
+        if (!chart) { if (this._kchart) { this._kchart.dispose(); this._kchart = null; } return; }
+
+        const klines = chart.klines;
+        const cats = klines.map(k => k.date);
+        const ohlc = klines.map(k => [k.open, k.close, k.low, k.high]);
+        const up = klines.map(k => k.bb_upper);
+        const mid = klines.map(k => k.bb_mid);
+        const low = klines.map(k => k.bb_lower);
+
+        const m = chart.markers || {};
+        const idxOf = d => (d ? cats.indexOf(d) : -1);
+        const oX = idxOf(m.open && m.open.date), cX = idxOf(m.close && m.close.date);
+        const hX = m.h_left && m.h_left.date ? idxOf(m.h_left.date) : -1;
+
+        const markPoints = [];
+        if (oX >= 0) markPoints.push({ coord: [oX, m.open.price], value: '开 ' + m.open.price, itemStyle: { color: '#4f9dff' } });
+        if (cX >= 0) markPoints.push({ coord: [cX, m.close.price], value: '平 ' + m.close.price, itemStyle: { color: '#c9a227' } });
+        if (hX >= 0) markPoints.push({ coord: [hX, m.h_left.price], value: 'H左', itemStyle: { color: '#e8a33d' } });
+
+        const markLines = [];
+        if (m.trigger_line != null) markLines.push({ yAxis: m.trigger_line, lineStyle: { type: 'dashed', color: '#8b93a1' }, label: { formatter: '触发位 ' + m.trigger_line, color: '#8b93a1', fontSize: 10 } });
+        if (m.take_profit != null) markLines.push({ yAxis: m.take_profit, lineStyle: { type: 'dotted', color: '#4f9dff', opacity: 0.5 }, label: { formatter: '止盈·中轨', color: '#4f9dff', fontSize: 10 } });
+        if (oX >= 0 && cX >= 0) markLines.push({ coord: [oX, m.open.price], coord2: [cX, m.close.price], lineStyle: { type: 'dashed', color: '#e5484d', opacity: 0.4 } });
+
+        if (this._kchart) this._kchart.dispose();
+        this._kchart = echarts.init(el, 'dark');
+        this._kchart.setOption({
+          backgroundColor: 'transparent',
+          legend: { data: ['布林上轨', '中轨(止盈)', '布林下轨'], top: 0, textStyle: { color: '#8b93a1' } },
+          grid: { left: 62, right: 18, top: 36, bottom: 54 },
+          tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+          xAxis: { type: 'category', data: cats, scale: true, axisLabel: { color: '#8b93a1', fontSize: 10 } },
+          yAxis: { scale: true, axisLabel: { color: '#8b93a1' }, splitLine: { lineStyle: { color: '#2a2f3a' } } },
+          dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 10 }],
+          series: [
+            { name: '布林上轨', type: 'line', data: up, smooth: true, symbol: 'none', lineStyle: { width: 1, opacity: 0.5, color: '#e5484d' } },
+            { name: '中轨(止盈)', type: 'line', data: mid, smooth: true, symbol: 'none', lineStyle: { width: 1.2, opacity: 0.7, color: '#4f9dff' } },
+            { name: '布林下轨', type: 'line', data: low, smooth: true, symbol: 'none', lineStyle: { width: 1, opacity: 0.5, color: '#30a46c' } },
+            {
+              type: 'candlestick', data: ohlc,
+              itemStyle: { color: '#e5484d', color0: '#30a46c', borderColor: '#e5484d', borderColor0: '#30a46c' },
+              markPoint: { data: markPoints, symbolSize: 38, label: { fontSize: 10, color: '#fff' } },
+              markLine: { symbol: 'none', data: markLines, label: { fontSize: 10 } },
+            },
+          ],
+        });
+      },
+
+      // ---- 格式化 ----
+      fmtTime(s) { if (!s) return ''; return s.replace('T', ' '); },
+      fmtMoney(n) { if (n == null || n === '') return '—'; const v = Number(n); return (v >= 0 ? '+' : '') + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }); },
+      dirLabel(d) { return d === 'short' ? '做空' : d === 'long' ? '做多' : (d || '—'); },
+      pnlClass(n) { if (n == null) return ''; return Number(n) > 0 ? 'pos' : Number(n) < 0 ? 'neg' : ''; },
+      negClass(n) { if (n == null) return ''; return Number(n) < 0 ? 'neg' : ''; },
+    }));
+  });
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</body>
+</html>
