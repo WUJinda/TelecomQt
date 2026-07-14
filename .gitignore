@@ -3,8 +3,9 @@
 __pycache__/
 *.pyc
 
-# 实验数据如不想入库可取消注释
-# backend/data/experiments/
+# 后端实验运行数据（LaiCai 导出的 experiment.json 等）不入库；保留 _tools/ 工具脚本
+backend/data/experiments/*/
+!backend/data/experiments/_tools/
 
 # OS / IDE
 .DS_Store
