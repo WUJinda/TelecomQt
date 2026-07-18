@@ -27,11 +27,18 @@ def _to_date_str(v):
         return str(v)[:10]
 
 
-def _calc_bbands(close_vals, period=20, std_dev=2.0):
-    """与 LaiCai calc_bbands 等价的布林带计算（自包含，不依赖 LaiCai 模块）。"""
+def _calc_bbands(close_vals, period=20, std_dev=2.0, ddof=1):
+    """布林带计算（自包含，不依赖 LaiCai 模块）。
+
+    ⚠ ddof 必须与 LaiCai 引擎的 calc_bbands 保持一致，否则复盘图上的布林三轨、
+    触发位（中下轨中间）、止盈（中轨）会与实际开仓时存在系统性偏差。
+    pandas rolling().std() 默认 ddof=1（样本标准差，除以 n-1）；若 LaiCai 用的是
+    总体标准差（除以 n）则改 ddof=0。默认取 1（pandas 标准，最常见写法）。
+    attach_charts 会从 params['bb_ddof'] 读取覆盖，便于按实验核对。
+    """
     close = pd.Series(np.asarray(close_vals, dtype=float))
     mid = close.rolling(period).mean()
-    sd = close.rolling(period).std(ddof=0)
+    sd = close.rolling(period).std(ddof=ddof)
     upper = mid + std_dev * sd
     lower = mid - std_dev * sd
     bw = np.where(mid > 0, (upper - lower) / mid, np.nan)
@@ -84,18 +91,20 @@ def build_chart(df, bbands, trade, params, instrument="?", holding_days=0, pre=2
     lower_o = float(lower[oi])
     trigger = round((mid_o + lower_o) / 2, 2)
     take_profit = round(mid_o, 2)
-    h_left_price = float(getattr(trade, "h_left", 0) or 0)
+    h_left_raw = getattr(trade, "h_left", None)
+    h_left_price = float(h_left_raw) if h_left_raw else None
 
     # 开仓时带宽在全序列（非 nan 部分）的历史分位
     valid_bw = bw[~np.isnan(bw)]
     bw_pct = int(round(float((valid_bw <= bw[oi]).mean()) * 100)) if len(valid_bw) else 0
 
+    h_left_seg = f"，回到左峰 H_left @{h_left_price:.2f} 区间开空" if h_left_price is not None else ""
     summary = (
         f"{instrument} · 做空 {trade.volume} 手 · "
         f"{_to_date_str(trade.open_date)} @{trade.open_price} 开仓 → "
         f"{_to_date_str(trade.close_date)} @{trade.close_price} 平仓 · "
         f"持仓 {holding_days} 天 · 开仓时带宽分位 {bw_pct}% · "
-        f"触发：带宽达标后跌破中下轨中间位 @{trigger}，回到左峰 H_left @{h_left_price} 区间开空"
+        f"触发：带宽达标后跌破中下轨中间位 @{trigger}{h_left_seg}"
     )
 
     return {
@@ -105,7 +114,7 @@ def build_chart(df, bbands, trade, params, instrument="?", holding_days=0, pre=2
             "open": {"date": _to_date_str(trade.open_date), "price": round(float(trade.open_price), 2)},
             "close": {"date": _to_date_str(trade.close_date), "price": round(float(trade.close_price), 2)},
             "h_left": {"date": _to_date_str(df["date"].iloc[hi]) if 0 <= hi < n else None,
-                       "price": round(h_left_price, 2)},
+                       "price": round(h_left_price, 2) if h_left_price is not None else None},
             "trigger_line": trigger,
             "take_profit": take_profit,
             "no_stop_loss": True,
@@ -134,16 +143,26 @@ def attach_charts(result, params, pre=20, post=5, clean=True):
     df = pd.DataFrame(records)
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").reset_index(drop=True)
-    bbands = _calc_bbands(df["close"].values, params.get("bb_period", 20), params.get("bb_std", 2.0))
+    bbands = _calc_bbands(
+        df["close"].values,
+        params.get("bb_period", 20),
+        params.get("bb_std", 2.0),
+        ddof=params.get("bb_ddof", 1),
+    )
 
     instrument = result.get("instrument", "?")
     for td, tr in zip(trades, trades_raw):
-        td["chart"] = build_chart(
-            df, bbands, tr, params,
-            instrument=instrument,
-            holding_days=td.get("holding_days", 0),
-            pre=pre, post=post,
-        )
+        try:
+            td["chart"] = build_chart(
+                df, bbands, tr, params,
+                instrument=instrument,
+                holding_days=td.get("holding_days", 0),
+                pre=pre, post=post,
+            )
+        except Exception as e:
+            # 单笔 chart 构建失败不应中断整个导出；前端会回退为「该笔无 K 线数据」
+            print(f"[build_chart] {instrument} 第{td.get('no', '?')}笔 chart 构建失败，跳过: {e}")
+            td["chart"] = None
 
     if clean:
         for k in ("records_raw", "trades_raw", "state_log"):

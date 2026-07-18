@@ -55,17 +55,19 @@ def _summarize(instruments):
     """从 per-instrument 结果聚合出 summary（与 run_all 逻辑一致）。"""
     traded = [r for r in instruments if r.get("trade_count", len(r.get("trades", []))) > 0]
     all_trades = [t for r in traded for t in r.get("trades", [])]
-    pnls = [t.get("net_pnl", 0) for t in all_trades]
     n = len(all_trades)
 
-    total_pnl = round(sum(pnls), 2) if pnls else 0.0
+    total_pnl = round(sum(t.get("net_pnl", 0) for t in all_trades), 2) if all_trades else 0.0
     total_margin = round(sum(t.get("margin", 0) for t in all_trades), 2)
     wins = sum(1 for t in all_trades if t.get("win"))
     hold_days = [t.get("holding_days", 0) for t in all_trades]
 
+    # 回撤按平仓日时序累计，与前端收益曲线口径一致（多品种时间交错时尤其重要）
     drawdown = 0.0
-    if pnls:
-        cum = np.cumsum(pnls)
+    if all_trades:
+        chronological = sorted(all_trades, key=lambda t: t.get("close_date") or "")
+        pnls_by_time = [t.get("net_pnl", 0) for t in chronological]
+        cum = np.cumsum(pnls_by_time)
         peak = np.maximum.accumulate(cum)
         drawdown = round(float((cum - peak).min()), 2)
 
@@ -91,7 +93,14 @@ def emit_experiment(instruments, strategy_name, strategy_type, direction,
                     params=None, capital=None, out_dir=".", mode=""):
     """生成 experiment.json，写入 out_dir/<experiment_id>/experiment.json。"""
     ts = datetime.now()
-    exp_id = ts.strftime("%Y%m%d_%H%M%S") + f"_{strategy_type}" + (f"_{mode}" if mode else "")
+    base = ts.strftime("%Y%m%d_%H%M%S") + f"_{strategy_type}" + (f"_{mode}" if mode else "")
+    # 同秒重复运行时追加序号，避免覆盖既有实验目录
+    out_root = Path(out_dir).expanduser()
+    exp_id = base
+    seq = 2
+    while (out_root / exp_id).exists():
+        exp_id = f"{base}_{seq}"
+        seq += 1
 
     envelope = {
         "experiment_id": exp_id,
@@ -124,9 +133,9 @@ if __name__ == "__main__":
     import os
 
     # 复用同目录下 _batch_backtest 的引擎（演示用 boll 引擎）
-    sys_path = os.path.dirname(os.path.abspath(__file__))
-    import sys as _sys
-    _sys.path.insert(0, sys_path)
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, here)
     from _batch_backtest import run_all  # type: ignore
 
     p = argparse.ArgumentParser(description="跑 boll 突破做空并导出 experiment.json（演示）")
