@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>来财 · 策略协作面板</title>
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="/assets/echarts.min.js"></script>
   <style>
     :root{
       --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --border:#2a2f3a;
@@ -58,6 +58,27 @@
     .empty{text-align:center;color:var(--muted);padding:50px 0}
     .skel{color:var(--muted);padding:30px 0;text-align:center}
     .note{color:var(--muted);font-size:12px;margin-top:18px;border-top:1px dashed var(--border);padding-top:12px}
+    .err{background:#3a1d1f;border:1px solid var(--pos);color:#ffb3b6;padding:10px 14px;border-radius:8px;margin:14px 0;font-size:13px}
+
+    /* 表单 / 卡片 / 看板（M2） */
+    input,textarea{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+      padding:6px 10px;border-radius:8px;font:inherit;width:100%}
+    input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent)}
+    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .form-grid .full{grid-column:1 / -1}
+    .form-grid label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+    .kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    @media(max-width:760px){.kanban{grid-template-columns:1fr}}
+    .kanban .col{min-width:0}
+    .kanban h4{margin:0 0 8px;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}
+    .item{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .item .ttl{font-weight:600;margin-bottom:4px}
+    .item .meta{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:6px 0}
+    .item .row{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.7}
+    .item .acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;border-top:1px dashed var(--border);padding-top:8px}
+    .btn.sm{font-size:12px;padding:3px 8px}
+    .btn.danger{border-color:var(--pos);color:#ffb3b6}
+    .btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
   </style>
 </head>
 <body>
@@ -66,18 +87,20 @@
     <span class="title">📈 来财 · 策略协作面板</span>
     <span class="badge">v0.1</span>
     <nav class="tabs">
-      <button :class="tab==='reports' && 'active'" @click="tab='reports'">回测报告</button>
-      <button :class="tab==='ideas' && 'active'" @click="tab='ideas'">策略想法</button>
-      <button :class="tab==='plans' && 'active'" @click="tab='plans'">交易计划</button>
+      <button :class="tab==='reports' && 'active'" @click="switchTab('reports')">回测报告</button>
+      <button :class="tab==='ideas' && 'active'" @click="switchTab('ideas')">策略想法</button>
+      <button :class="tab==='plans' && 'active'" @click="switchTab('plans')">交易计划</button>
     </nav>
   </header>
 
   <main>
+    <div x-show="error" class="err" x-text="error" style="margin-top:14px"></div>
+
     <!-- ============ 报告 ============ -->
     <section x-show="tab==='reports'">
 
       <!-- 列表 -->
-      <template x-if="tab==='reports' && !current">
+      <template x-if="tab==='reports' && !current && !loadingDetail">
         <div>
           <h3 style="margin:6px 0">回测实验</h3>
           <div class="wrap" style="overflow-x:auto">
@@ -108,6 +131,9 @@
           <div x-show="loadingList" class="skel">加载中…</div>
         </div>
       </template>
+
+      <!-- 详情加载骨架 -->
+      <div x-show="tab==='reports' && !current && loadingDetail" class="skel">加载报告详情…</div>
 
       <!-- 详情 -->
       <template x-if="tab==='reports' && current">
@@ -188,7 +214,7 @@
             <pre style="color:var(--muted);font-size:12px" x-text="JSON.stringify(current.params||{},null,2)"></pre>
           </details>
 
-          <div class="note">说明：收益曲线按平仓日累计；明细里的盈亏已扣手续费。颜色遵循期货「红涨绿跌」。</div>
+          <div class="note">说明：收益曲线按平仓日累计；明细里的盈亏已扣手续费。「总收益率」= 总净盈亏 ÷ 总占用保证金（未按时间加权，并非账户实际收益率）。颜色遵循期货「红涨绿跌」。</div>
           </div><!-- /总览 -->
 
           <!-- ===== 逐笔复盘 ===== -->
@@ -229,16 +255,207 @@
       </template>
     </section>
 
-    <!-- ============ 想法（M2）============ -->
-    <section x-show="tab==='ideas'" class="empty">
-      <h3>策略想法</h3>
-      <p>这部分（朋友记录策略点子 → 存成结构化 spec）在 M2 上线。</p>
+    <!-- ============ 想法 ============ -->
+    <section x-show="tab==='ideas'">
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <b x-text="ideaEditingId ? '编辑想法 #' + ideaEditingId : '💡 新增策略想法'"></b>
+          <button x-show="ideaEditingId" class="btn sm" @click="resetIdeaForm()">取消编辑</button>
+        </div>
+        <div class="form-grid">
+          <div class="full">
+            <label>策略名 *</label>
+            <input x-model="ideaForm.name" placeholder="例：日线双峰左侧做空">
+          </div>
+          <div>
+            <label>品种</label>
+            <input x-model="ideaForm.instrument" placeholder="rb / ag / sn / MA …" list="instrument-list">
+          </div>
+          <div>
+            <label>周期</label>
+            <select x-model="ideaForm.timeframe">
+              <option value="">（不限）</option>
+              <option>2H</option><option>4H</option><option>1D</option>
+            </select>
+          </div>
+          <div>
+            <label>开仓条件</label>
+            <input x-model="ideaForm.entry_condition" placeholder="例：跌破布林中下轨中间位">
+          </div>
+          <div>
+            <label>平仓条件</label>
+            <input x-model="ideaForm.exit_condition" placeholder="例：回到布林中轨">
+          </div>
+          <div>
+            <label>止损</label>
+            <input x-model="ideaForm.stop_loss" placeholder="价格或说明">
+          </div>
+          <div>
+            <label>止盈</label>
+            <input x-model="ideaForm.take_profit" placeholder="价格或说明">
+          </div>
+          <div>
+            <label>手数</label>
+            <input x-model="ideaForm.volume" placeholder="例：2手">
+          </div>
+          <div>
+            <label>作者</label>
+            <select x-model="ideaForm.author"><option>DAREWIN</option><option>朋友</option></select>
+          </div>
+          <div class="full">
+            <label>备注</label>
+            <textarea x-model="ideaForm.note" rows="2" placeholder="观察、假设、待验证点…"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn accent" @click="saveIdea()" x-text="ideaEditingId ? '保存修改' : '添加想法'"></button>
+        </div>
+      </div>
+
+      <datalist id="instrument-list">
+        <option value="rb 螺纹钢"></option>
+        <option value="ag 白银"></option>
+        <option value="sn 锡"></option>
+        <option value="MA 甲醇"></option>
+        <option value="TA PTA"></option>
+        <option value="cu 铜"></option>
+        <option value="ni 镍"></option>
+      </datalist>
+
+      <template x-for="st in ['新想法','已转回测','已采纳','已搁置']" :key="st">
+        <div class="wrap" style="margin-bottom:14px">
+          <div class="hd">
+            <b x-text="st"></b>
+            <span class="pill" x-text="ideasByStatus(st).length"></span>
+          </div>
+          <div style="padding:12px">
+            <div x-show="ideasByStatus(st).length===0" class="empty" style="padding:20px 0">暂无</div>
+            <template x-for="it in ideasByStatus(st)" :key="it.id">
+              <div class="item" style="margin-bottom:10px">
+                <div class="ttl" x-text="it.name"></div>
+                <div class="meta">
+                  <span class="pill" x-show="it.instrument" x-text="it.instrument"></span>
+                  <span class="pill" x-show="it.timeframe" x-text="it.timeframe"></span>
+                  <span class="pill" x-show="it.volume" x-text="it.volume"></span>
+                  <span class="muted" style="font-size:12px" x-text="it.author + ' · ' + fmtTime((it.created_at||'').slice(0,19))"></span>
+                </div>
+                <div class="row" x-show="it.entry_condition"><b>开仓：</b><span x-text="it.entry_condition"></span></div>
+                <div class="row" x-show="it.exit_condition"><b>平仓：</b><span x-text="it.exit_condition"></span></div>
+                <div class="row" x-show="it.stop_loss || it.take_profit"><b x-show="it.stop_loss">止损：</b><span x-show="it.stop_loss" x-text="it.stop_loss"></span><span x-show="it.stop_loss && it.take_profit">　</span><b x-show="it.take_profit">止盈：</b><span x-show="it.take_profit" x-text="it.take_profit"></span></div>
+                <div class="row" x-show="it.note" x-text="it.note"></div>
+                <div class="acts">
+                  <template x-for="ns in ['新想法','已转回测','已采纳','已搁置']" :key="ns">
+                    <button class="btn sm" x-show="ns!==it.status" @click="setIdeaStatus(it, ns)" x-text="'→ '+ns"></button>
+                  </template>
+                  <button class="btn sm" @click="editIdea(it)">编辑</button>
+                  <button class="btn sm danger" @click="deleteIdea(it.id)">删除</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </template>
     </section>
 
-    <!-- ============ 计划（M2）============ -->
-    <section x-show="tab==='plans'" class="empty">
-      <h3>交易计划</h3>
-      <p>这部分（品种/方向/止损/目标的看板式管理）在 M2 上线。</p>
+    <!-- ============ 计划 ============ -->
+    <section x-show="tab==='plans'">
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <b x-text="planEditingId ? '编辑计划 #' + planEditingId : '📋 新增交易计划'"></b>
+          <button x-show="planEditingId" class="btn sm" @click="resetPlanForm()">取消编辑</button>
+        </div>
+        <div class="form-grid">
+          <div>
+            <label>品种</label>
+            <input x-model="planForm.instrument" placeholder="rb / ag / sn …" list="instrument-list">
+          </div>
+          <div>
+            <label>方向</label>
+            <select x-model="planForm.direction"><option>多</option><option>空</option></select>
+          </div>
+          <div>
+            <label>计划入场</label>
+            <input x-model="planForm.planned_entry" placeholder="价格或区间 4200-4250">
+          </div>
+          <div>
+            <label>计划日期</label>
+            <input type="date" x-model="planForm.planned_date">
+          </div>
+          <div>
+            <label>止损</label>
+            <input x-model="planForm.stop_loss" placeholder="价格">
+          </div>
+          <div>
+            <label>目标</label>
+            <input x-model="planForm.target" placeholder="价格">
+          </div>
+          <div>
+            <label>手数</label>
+            <input x-model="planForm.volume" placeholder="例：2手">
+          </div>
+          <div>
+            <label>作者</label>
+            <select x-model="planForm.author"><option>DAREWIN</option><option>朋友</option></select>
+          </div>
+          <div class="full">
+            <label>备注</label>
+            <textarea x-model="planForm.note" rows="2"></textarea>
+          </div>
+          <template x-if="planEditingId">
+            <div class="full" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div>
+                <label>实际入场（回填）</label>
+                <input x-model="planForm.actual_entry" placeholder="执行后填写">
+              </div>
+              <div>
+                <label>实际盈亏（回填）</label>
+                <input x-model="planForm.actual_pnl" placeholder="例：+6300 / -1500">
+              </div>
+            </div>
+          </template>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn accent" @click="savePlan()" x-text="planEditingId ? '保存修改' : '添加计划'"></button>
+        </div>
+      </div>
+
+      <div class="kanban">
+        <template x-for="st in ['计划中','已执行','已放弃']" :key="st">
+          <div class="col">
+            <h4><span x-text="st"></span><span class="pill" x-text="plansByStatus(st).length"></span></h4>
+            <div x-show="plansByStatus(st).length===0" class="empty" style="padding:20px 0">暂无</div>
+            <template x-for="pl in plansByStatus(st)" :key="pl.id">
+              <div class="item" style="margin-bottom:10px">
+                <div class="ttl">
+                  <span x-text="(pl.instrument||'?') + ' '"></span>
+                  <span :class="pl.direction==='多' ? 'pos' : 'neg'" x-text="pl.direction"></span>
+                </div>
+                <div class="meta">
+                  <span class="pill" x-show="pl.volume" x-text="pl.volume"></span>
+                  <span class="pill" x-show="pl.planned_date" x-text="pl.planned_date"></span>
+                  <span class="muted" style="font-size:12px" x-text="pl.author"></span>
+                </div>
+                <div class="row" x-show="pl.planned_entry"><b>入场：</b><span x-text="pl.planned_entry"></span></div>
+                <div class="row" x-show="pl.stop_loss || pl.target"><b x-show="pl.stop_loss">止损：</b><span x-show="pl.stop_loss" x-text="pl.stop_loss"></span><span x-show="pl.stop_loss && pl.target">　</span><b x-show="pl.target">目标：</b><span x-show="pl.target" x-text="pl.target"></span></div>
+                <template x-if="pl.status==='已执行'">
+                  <div class="row" style="border-top:1px dashed var(--border);margin-top:6px;padding-top:6px">
+                    <span x-show="pl.actual_entry"><b>实际：</b><span x-text="pl.actual_entry"></span>　</span>
+                    <span :class="pnlClass(parsePnl(pl.actual_pnl))"><b>盈亏：</b><span x-text="pl.actual_pnl || '—'"></span></span>
+                  </div>
+                </template>
+                <div class="row" x-show="pl.note" x-text="pl.note"></div>
+                <div class="acts">
+                  <template x-for="ns in ['计划中','已执行','已放弃']" :key="ns">
+                    <button class="btn sm" x-show="ns!==pl.status" @click="setPlanStatus(pl, ns)" x-text="'→ '+ns"></button>
+                  </template>
+                  <button class="btn sm" @click="editPlan(pl)">编辑</button>
+                  <button class="btn sm danger" @click="deletePlan(pl.id)">删除</button>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
     </section>
   </main>
 </div>
@@ -254,56 +471,220 @@
       loadingDetail: false,
       selectedInst: 0,
       selectedTrade: 0,
+      error: '',
       _chart: null,
       _kchart: null,
+      _atKey: null,
+      _atCache: null,
+
+      // ===== M2：想法 / 计划 =====
+      ideas: [],
+      ideaEditingId: null,
+      ideaForm: { name:'', instrument:'', timeframe:'', entry_condition:'', exit_condition:'', stop_loss:'', take_profit:'', volume:'', note:'', status:'新想法', author:'DAREWIN' },
+      plans: [],
+      planEditingId: null,
+      planForm: { instrument:'', direction:'多', planned_entry:'', stop_loss:'', target:'', volume:'', planned_date:'', status:'计划中', actual_entry:'', actual_pnl:'', note:'', author:'DAREWIN' },
 
       async init() {
         await this.loadList();
-        window.addEventListener('resize', () => { if (this._chart) this._chart.resize(); if (this._kchart) this._kchart.resize(); });
+        window.addEventListener('resize', () => {
+          if (this._chart && this.$refs.chart && this.$refs.chart.offsetWidth) this._chart.resize();
+          if (this._kchart && this.$refs.kchart && this.$refs.kchart.offsetWidth) this._kchart.resize();
+        });
       },
       async loadList() {
         this.loadingList = true;
+        this.error = '';
         try {
           const r = await fetch('/api/reports');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
           this.experiments = await r.json();
-        } catch (e) { console.error(e); }
+        } catch (e) { this.error = '加载回测列表失败，请确认后端已启动：' + e.message; console.error(e); }
         this.loadingList = false;
       },
       async open(id) {
+        this.error = '';
         this.loadingDetail = true;
         try {
           const r = await fetch('/api/reports/' + encodeURIComponent(id));
+          if (!r.ok) throw new Error('HTTP ' + r.status);
           this.current = await r.json();
           const idx = (this.current.instruments || []).findIndex(i => (i.trade_count || 0) > 0);
           this.selectedInst = idx >= 0 ? idx : 0;
           this.subtab = 'overview';
           this.selectedTrade = 0;
           this.$nextTick(() => this.renderChart());
-        } catch (e) { console.error(e); }
+        } catch (e) { this.error = '加载报告详情失败：' + e.message; console.error(e); }
         this.loadingDetail = false;
       },
       back() {
         if (this._chart) { this._chart.dispose(); this._chart = null; }
         if (this._kchart) { this._kchart.dispose(); this._kchart = null; }
         this.current = null;
+        this._atKey = null;
+        this._atCache = null;
+        this.error = '';
       },
+      // ===== Tab 切换（切到想法/计划时懒加载） =====
+      switchTab(t) {
+        this.tab = t;
+        if (t === 'ideas') this.loadIdeas();
+        else if (t === 'plans') this.loadPlans();
+      },
+
+      // ===== 想法 CRUD =====
+      async loadIdeas() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/ideas');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.ideas = await r.json();
+        } catch (e) { this.error = '加载想法失败：' + e.message; console.error(e); }
+      },
+      async saveIdea() {
+        if (!this.ideaForm.name.trim()) { this.error = '策略名不能为空'; return; }
+        this.error = '';
+        try {
+          const opt = { method: this.ideaEditingId ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.ideaForm) };
+          const url = this.ideaEditingId ? '/api/ideas/' + this.ideaEditingId : '/api/ideas';
+          const r = await fetch(url, opt);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.resetIdeaForm();
+          await this.loadIdeas();
+        } catch (e) { this.error = '保存想法失败：' + e.message; console.error(e); }
+      },
+      editIdea(it) {
+        this.ideaEditingId = it.id;
+        this.ideaForm = { name:it.name, instrument:it.instrument, timeframe:it.timeframe,
+          entry_condition:it.entry_condition, exit_condition:it.exit_condition,
+          stop_loss:it.stop_loss, take_profit:it.take_profit, volume:it.volume,
+          note:it.note, status:it.status, author:it.author };
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+      resetIdeaForm() {
+        this.ideaEditingId = null;
+        this.ideaForm = { name:'', instrument:'', timeframe:'', entry_condition:'', exit_condition:'', stop_loss:'', take_profit:'', volume:'', note:'', status:'新想法', author:'DAREWIN' };
+      },
+      async setIdeaStatus(it, status) {
+        this.error = '';
+        try {
+          const r = await fetch('/api/ideas/' + it.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          it.status = status;
+        } catch (e) { this.error = '更新状态失败：' + e.message; console.error(e); }
+      },
+      async deleteIdea(id) {
+        if (!confirm('确定删除这条想法？')) return;
+        this.error = '';
+        try {
+          const r = await fetch('/api/ideas/' + id, { method:'DELETE' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.ideas = this.ideas.filter(i => i.id !== id);
+        } catch (e) { this.error = '删除失败：' + e.message; console.error(e); }
+      },
+      ideasByStatus(st) { return this.ideas.filter(i => i.status === st); },
+
+      // ===== 计划 CRUD =====
+      async loadPlans() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/plans');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.plans = await r.json();
+        } catch (e) { this.error = '加载计划失败：' + e.message; console.error(e); }
+      },
+      async savePlan() {
+        if (!this.planForm.instrument.trim()) { this.error = '品种不能为空'; return; }
+        this.error = '';
+        try {
+          const opt = { method: this.planEditingId ? 'PATCH' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.planForm) };
+          const url = this.planEditingId ? '/api/plans/' + this.planEditingId : '/api/plans';
+          const r = await fetch(url, opt);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.resetPlanForm();
+          await this.loadPlans();
+        } catch (e) { this.error = '保存计划失败：' + e.message; console.error(e); }
+      },
+      editPlan(pl) {
+        this.planEditingId = pl.id;
+        this.planForm = { instrument:pl.instrument, direction:pl.direction, planned_entry:pl.planned_entry,
+          stop_loss:pl.stop_loss, target:pl.target, volume:pl.volume, planned_date:pl.planned_date,
+          status:pl.status, actual_entry:pl.actual_entry, actual_pnl:pl.actual_pnl,
+          note:pl.note, author:pl.author };
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      },
+      resetPlanForm() {
+        this.planEditingId = null;
+        this.planForm = { instrument:'', direction:'多', planned_entry:'', stop_loss:'', target:'', volume:'', planned_date:'', status:'计划中', actual_entry:'', actual_pnl:'', note:'', author:'DAREWIN' };
+      },
+      async setPlanStatus(pl, status) {
+        this.error = '';
+        try {
+          const r = await fetch('/api/plans/' + pl.id, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          pl.status = status;
+        } catch (e) { this.error = '更新状态失败：' + e.message; console.error(e); }
+      },
+      async deletePlan(id) {
+        if (!confirm('确定删除这条计划？')) return;
+        this.error = '';
+        try {
+          const r = await fetch('/api/plans/' + id, { method:'DELETE' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.plans = this.plans.filter(p => p.id !== id);
+        } catch (e) { this.error = '删除失败：' + e.message; console.error(e); }
+      },
+      plansByStatus(st) { return this.plans.filter(p => p.status === st); },
+      parsePnl(s) { const m = String(s == null ? '' : s).replace(/[^0-9.-]/g, ''); const n = Number(m); return isNaN(n) ? null : n; },
+
       s() { return (this.current && this.current.summary) || {}; },
       curInst() { return this.current && this.current.instruments && this.current.instruments[this.selectedInst]; },
 
       renderChart() {
         const el = this.$refs.chart;
+        // open() 里 current 赋值后用 $nextTick 调本函数，但此时 Alpine x-if 的详情 DOM
+        // 可能还没插入（$refs.chart 为 undefined），或刚插入尚未布局（offsetWidth/Height 为 0）。
+        // echarts 在 0 尺寸宿主上 init 会建 0 尺寸实例且之后不自动恢复——表现为首次进入
+        // 报告曲线空白、手动切品种重新 init 才出现。统一用 RAF 等到 el 就绪，30 帧上限防死循环。
+        if (this.current && (!el || !el.offsetWidth || !el.offsetHeight) && (this._chartRetry | 0) < 30) {
+          this._chartRetry = (this._chartRetry | 0) + 1;
+          requestAnimationFrame(() => this.renderChart());
+          return;
+        }
+        this._chartRetry = 0;
         if (!el || !this.current) return;
+
+        // 兜底清理 DOM 上可能残留的旧 echarts 实例。若只依赖 this._chart 引用，
+        // 一旦它与 DOM 真实实例不同步（x-if 复用同一 #chart DOM / nextTick 时序），
+        // echarts.init(el) 会复用旧实例并把新 option merge 上去——空 trades 无法清除旧 series，
+        // 于是无交易报告仍会显示上一个报告的曲线。用 getInstanceByDom 彻底清理。
+        const stale = echarts.getInstanceByDom(el);
+        if (stale) stale.dispose();
+        this._chart = null;
+
         const trades = [];
         for (const inst of this.current.instruments) {
           for (const t of (inst.trades || [])) {
             trades.push({ date: t.close_date, pnl: t.net_pnl || 0 });
           }
         }
+
+        // 无交易：彻底清空图表区域并提示，不再绘制坐标系，避免任何残留。
+        if (!trades.length) {
+          el.innerHTML = '<div class="empty" style="display:flex;align-items:center;justify-content:center;height:100%">本报告无交易记录</div>';
+          return;
+        }
+
         trades.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
         let cum = 0;
         const xs = [], ys = [];
         for (const t of trades) { cum += t.pnl; xs.push(t.date); ys.push(+cum.toFixed(2)); }
-        if (this._chart) this._chart.dispose();
+        // 清空宿主元素（可能残留上次"无交易"提示或 dispose 后的容器），避免与新图叠加
+        el.innerHTML = '';
         this._chart = echarts.init(el, 'dark');
         this._chart.setOption({
           backgroundColor: 'transparent',
@@ -327,6 +708,8 @@
 
       allTrades() {
         if (!this.current) return [];
+        const key = this.current.experiment_id;
+        if (key && this._atKey === key && this._atCache) return this._atCache;
         const out = [];
         for (let ii = 0; ii < (this.current.instruments || []).length; ii++) {
           const inst = this.current.instruments[ii];
@@ -339,6 +722,8 @@
             });
           }
         }
+        this._atKey = key;
+        this._atCache = out;
         return out;
       },
       curChart() {
@@ -370,19 +755,20 @@
         const low = klines.map(k => k.bb_lower);
 
         const m = chart.markers || {};
-        const idxOf = d => (d ? cats.indexOf(d) : -1);
-        const oX = idxOf(m.open && m.open.date), cX = idxOf(m.close && m.close.date);
-        const hX = m.h_left && m.h_left.date ? idxOf(m.h_left.date) : -1;
+        // coord 用类目名(日期)而非索引，避免 category 轴定位歧义；
+        // markLine 两点连线必须用 [{coord},{coord}] 数组格式——echarts3 的 {coord,coord2} 旧写法在 echarts5 会抛 "Cannot read 'coord' of undefined"
+        const has = d => !!(d && cats.indexOf(d) >= 0);
+        const oD = m.open && m.open.date, cD = m.close && m.close.date, hD = m.h_left && m.h_left.date;
 
         const markPoints = [];
-        if (oX >= 0) markPoints.push({ coord: [oX, m.open.price], value: '开 ' + m.open.price, itemStyle: { color: '#4f9dff' } });
-        if (cX >= 0) markPoints.push({ coord: [cX, m.close.price], value: '平 ' + m.close.price, itemStyle: { color: '#c9a227' } });
-        if (hX >= 0) markPoints.push({ coord: [hX, m.h_left.price], value: 'H左', itemStyle: { color: '#e8a33d' } });
+        if (has(oD)) markPoints.push({ coord: [oD, m.open.price], value: '开 ' + m.open.price, itemStyle: { color: '#4f9dff' } });
+        if (has(cD)) markPoints.push({ coord: [cD, m.close.price], value: '平 ' + m.close.price, itemStyle: { color: '#c9a227' } });
+        if (has(hD)) markPoints.push({ coord: [hD, m.h_left.price], value: 'H左', itemStyle: { color: '#e8a33d' } });
 
         const markLines = [];
         if (m.trigger_line != null) markLines.push({ yAxis: m.trigger_line, lineStyle: { type: 'dashed', color: '#8b93a1' }, label: { formatter: '触发位 ' + m.trigger_line, color: '#8b93a1', fontSize: 10 } });
         if (m.take_profit != null) markLines.push({ yAxis: m.take_profit, lineStyle: { type: 'dotted', color: '#4f9dff', opacity: 0.5 }, label: { formatter: '止盈·中轨', color: '#4f9dff', fontSize: 10 } });
-        if (oX >= 0 && cX >= 0) markLines.push({ coord: [oX, m.open.price], coord2: [cX, m.close.price], lineStyle: { type: 'dashed', color: '#e5484d', opacity: 0.4 } });
+        if (has(oD) && has(cD)) markLines.push([{ coord: [oD, m.open.price] }, { coord: [cD, m.close.price], lineStyle: { type: 'dashed', color: '#e5484d', opacity: 0.4 } }]);
 
         if (this._kchart) this._kchart.dispose();
         this._kchart = echarts.init(el, 'dark');
@@ -417,6 +803,6 @@
     }));
   });
 </script>
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="/assets/alpine.min.js"></script>
 </body>
 </html>
