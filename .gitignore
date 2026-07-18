@@ -7,6 +7,9 @@ __pycache__/
 backend/data/experiments/*/
 !backend/data/experiments/_tools/
 
+# 后端运行时 SQLite 数据库（首次启动由 init_db 自动创建，不入库）
+backend/data/app.db
+
 # OS / IDE
 .DS_Store
 .idea/
@@ -14,3 +17,8 @@ backend/data/experiments/*/
 
 # Claude Code 本地个人设置（权限/偏好，不入库）
 .claude/settings.local.json
+
+# market-data 管线产物（Parquet store / 导出 JSON / 米筐账号）
+market-data/store/
+market-data/exports/
+market-data/.env
