@@ -1,2 +1,4 @@
 fastapi>=0.110,<1.0
 uvicorn[standard]>=0.29
+sqlmodel>=0.0.16
+httpx2  # FastAPI TestClient 依赖；仅冒烟测试(.context/verify_m2.py)需要，生产可不装

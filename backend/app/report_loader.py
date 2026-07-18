@@ -5,6 +5,7 @@ experiment.json 字段约定见 docs/experiment-schema.md。
 """
 import json
 import os
+import re
 from pathlib import Path
 
 
@@ -30,7 +31,8 @@ def list_experiments() -> list[dict]:
             continue
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[report_loader] 跳过损坏的 {f}: {e}")
             continue
         s = data.get("summary") or {}
         items.append({
@@ -50,8 +52,14 @@ def list_experiments() -> list[dict]:
     return items
 
 
+# experiment_id 同时是目录名，限定为字母/数字/下划线/连字符，杜绝路径穿越
+_EXP_ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+
 def get_experiment(exp_id: str) -> dict | None:
-    """读取单个实验的完整数据；不存在返回 None。"""
+    """读取单个实验的完整数据；不存在或 exp_id 非法返回 None。"""
+    if not exp_id or not _EXP_ID_RE.fullmatch(exp_id):
+        return None
     f = _data_dir() / exp_id / "experiment.json"
     if not f.exists():
         return None

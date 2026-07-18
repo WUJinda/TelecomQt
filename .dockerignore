@@ -1,0 +1,32 @@
+# Docker build context = TelecomQt 根（见 deploy/docker-compose.yml 的 context: ..）
+# 镜像只需要 backend/app、backend/requirements.txt、frontend；其余一律排除，避免把
+# .venv / .git / 实验数据等打进 context 拖慢构建。
+#
+# 注意：Docker 只读 build context 根目录的 .dockerignore，所以本文件必须在项目根。
+# 之前放在 backend/.dockerignore 的版本不生效，已删除并合并到此处。
+
+# 版本控制 / Python 虚拟环境
+.git/
+.gitignore
+.venv/
+venv/
+
+# Python 缓存
+**/__pycache__/
+*.pyc
+
+# 实验数据：由 docker-compose 运行时挂卷（../backend/data:/data）提供，不进镜像
+backend/data/
+
+# 文档 / 部署 / LaiCai 桥（镜像不需要）
+docs/
+deploy/
+laicai-bridge/
+README.md
+*.md
+
+# IDE / OS / 工具
+.idea/
+.vscode/
+.DS_Store
+.claude/

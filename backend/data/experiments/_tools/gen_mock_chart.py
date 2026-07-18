@@ -35,7 +35,11 @@ def trading_dates(start, n):
 
 
 def rolling_mean_std(a, w=BB_PERIOD):
-    """min_periods=1 风格的 rolling 均值/标准差（前 w-1 根用可用数据，示意可接受）。"""
+    """min_periods=1 风格的 rolling 均值/标准差（前 w-1 根用可用数据，示意可接受）。
+
+    注意：此处方差为「总体方差」（除以 n），仅服务于合成示意数据，不参与真实回测。
+    真实复盘的布林带口径以 laicai-bridge/build_chart.py 为准（ddof 需与 LaiCai 一致）。
+    """
     n = len(a)
     mean = [0.0] * n
     std = [0.0] * n
