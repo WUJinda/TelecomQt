@@ -51,6 +51,10 @@
 }
 ```
 
+> 口径说明：
+> - `total_return_rate` = `total_pnl` / `total_margin` × 100，其中 `total_margin` 是**所有交易保证金简单求和**（未按持仓时间加权），并非账户实际收益率，仅供横向比较。
+> - `max_drawdown` 按**平仓日时序**累计净盈亏计算（与前端收益曲线口径一致）。
+
 ## instruments[i]（有交易时）
 
 ```json
@@ -128,7 +132,7 @@
 |---|---|---|
 | window.pre/post | int | 开仓前 / 平仓后 K 线根数 |
 | klines[] | array | 窗口内每根 K 线 OHLCV + 同步布林三轨 / bandwidth |
-| klines[].bb_upper/mid/lower | float | 布林上/中/下轨（per-kline，与 LaiCai 引擎 `bbands_data` 一致） |
+| klines[].bb_upper/mid/lower | float | 布林上/中/下轨（per-kline，与 LaiCai 引擎 `bbands_data` 一致；ddof 需与 LaiCai `calc_bbands` 保持一致，见 `laicai-bridge/build_chart.py`） |
 | klines[].bw | float | 该根带宽 = (上轨 − 下轨) / 中轨 |
 | markers.open/close | {date,price} | 开 / 平仓标点，定位到 K 线 |
 | markers.h_left | {date,price} | 左峰高点标点（本策略只有左峰，无右峰/颈线） |
@@ -138,4 +142,6 @@
 | bw_pct_at_open | int | 开仓时带宽的历史分位（0–100） |
 | summary | string | 一句话复盘（导出生成；前端缺失时用 trades 字段兜底拼接） |
 
-> ⚠ 样例 `experiment.json` 里的 chart 是**合成示意数据**（`_tools/gen_mock_chart.py` 按真实开/平仓价反推走势），仅用于验证前端呈现。真实 chart 需由 LaiCai 引擎导出。
+> 样例 `experiment.json` 的 chart 已由 [`laicai-bridge/fetch_kline.py`](../laicai-bridge/fetch_kline.py) 替换为 **AKShare 真实行情**（OHLCV + 布林带，`period/std` 取自 `experiment.params`，`ddof=1`，与 `build_chart.py` 口径一致；开/平仓价与回测逐位吻合）。首次替换时合成版备份在 `experiment.json.synth.bak`。
+>
+> 接入你自己的回测时，chart 仍由 LaiCai 引擎经 `build_chart.py` 导出（含策略识别的真实左峰 `h_left`）；也可脱离 LaiCai，单用 `fetch_kline.py` 拉真实 K 线补 chart（此时 `h_left` 用「开仓前 N 日最高价」近似，仅供复盘标注）。
