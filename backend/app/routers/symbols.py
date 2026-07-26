@@ -9,13 +9,19 @@ GET /api/symbols?q=螺纹   → 模糊搜索（中文名称或英文缩写）
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 from fastapi import APIRouter, Query
 
 # ---- 从 market-data/config.py 读取品种元信息（单一真相源）----
-_MARKET_DATA_DIR = Path(__file__).resolve().parents[3] / "market-data"
+# 本地开发：parents[3] = TelecomQt 根 → market-data/
+# Docker：由 ENV MARKET_DATA_DIR=/app/market-data 指定
+_MARKET_DATA_DIR = Path(os.environ.get(
+    "MARKET_DATA_DIR",
+    Path(__file__).resolve().parents[3] / "market-data",
+))
 _STORE_DAILY = _MARKET_DATA_DIR / "store" / "daily"
 _EXPORT_DIR = _MARKET_DATA_DIR / "exports"
 
@@ -23,10 +29,15 @@ _config = None
 
 
 def _load_config():
-    """延迟加载 market-data/config.py（首次调用时把 market-data 加入 sys.path）。"""
+    """延迟加载 market-data/config.py。
+
+    Docker 环境用 ENV MARKET_DATA_DIR 指定路径；market-data 不存在时返回 None（优雅降级）。
+    """
     global _config
     if _config is not None:
         return _config
+    if not (_MARKET_DATA_DIR / "config.py").exists():
+        return None
     if str(_MARKET_DATA_DIR) not in sys.path:
         sys.path.insert(0, str(_MARKET_DATA_DIR))
     import config  # type: ignore[import-not-found]
@@ -75,6 +86,10 @@ def list_symbols(q: str = Query(default="", description="搜索关键词（中�
     返回按交易所分组的品种列表，每个品种含已有合约信息。
     """
     config = _load_config()
+    if config is None:
+        # market-data 不可用（如精简 Docker 部署）——返回空结果而非崩溃
+        return {"total": 0, "query": q.strip(), "varieties": [], "note": "market-data 不可用"}
+
     q_lower = q.strip().lower()
 
     results = []

@@ -18,6 +18,17 @@ venv/
 # 实验数据：由 docker-compose 运行时挂卷（../backend/data:/data）提供，不进镜像
 backend/data/
 
+# market-data：只需 config.py + exports 进镜像；store/batch 脚本/tests 不需要
+market-data/store/
+market-data/.venv/
+market-data/__pycache__/
+market-data/batch_*.py
+market-data/tests/
+market-data/README.md
+market-data/requirements-data.txt
+market-data/.env
+market-data/.env.example
+
 # 文档 / 部署 / LaiCai 桥（镜像不需要）
 docs/
 deploy/

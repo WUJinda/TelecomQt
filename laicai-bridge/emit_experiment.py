@@ -51,6 +51,21 @@ from pathlib import Path
 import numpy as np
 
 
+def _json_default(obj):
+    """JSON 序列化 fallback：处理 numpy 类型和 pandas Timestamp。"""
+    if isinstance(obj, (np.bool_,)):
+        return bool(obj)
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    if hasattr(obj, "isoformat"):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
 def _summarize(instruments):
     """从 per-instrument 结果聚合出 summary（与 run_all 逻辑一致）。"""
     traded = [r for r in instruments if r.get("trade_count", len(r.get("trades", []))) > 0]
@@ -118,7 +133,7 @@ def emit_experiment(instruments, strategy_name, strategy_type, direction,
     out_path = Path(out_dir).expanduser() / exp_id
     out_path.mkdir(parents=True, exist_ok=True)
     (out_path / "experiment.json").write_text(
-        json.dumps(envelope, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(envelope, ensure_ascii=False, indent=2, default=_json_default), encoding="utf-8"
     )
     print(f"[emit_experiment] 已写出: {out_path / 'experiment.json'}")
     return out_path

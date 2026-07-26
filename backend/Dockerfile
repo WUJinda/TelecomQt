@@ -8,10 +8,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app /app/app
 COPY frontend /app/frontend
+COPY market-data/config.py /app/market-data/config.py
+COPY market-data/exports /app/market-data/exports
 
 # 实验数据挂载点（docker-compose 挂 ./backend/data:/data）
 ENV FRONTEND_DIR=/app/frontend
 ENV EXPERIMENTS_DIR=/data/experiments
+# market-data 路径（symbols router 读品种目录 + 已有合约）
+ENV MARKET_DATA_DIR=/app/market-data
 VOLUME ["/data"]
 
 EXPOSE 8000

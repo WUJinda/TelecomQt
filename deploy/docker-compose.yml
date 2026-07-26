@@ -7,8 +7,41 @@ services:
     volumes:
       # 实验数据：LaiCai 导出的 experiment.json 放进 backend/data/experiments/
       - ../backend/data:/data
+      # 行情数据：更新 market-data/exports 后同步进容器（覆盖镜像内的版本）
+      - ../market-data/exports:/app/market-data/exports
     ports:
       - "8000:8000"
     restart: always
     environment:
       - EXPERIMENTS_DIR=/data/experiments
+      - MARKET_DATA_DIR=/app/market-data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # Cloudflare Tunnel：把 NAS 的 8000 端口安全暴露到公网（免公网 IP、自动 HTTPS）。
+  # 启用步骤：
+  #   1. cloudflared tunnel login（浏览器授权）
+  #   2. cloudflared tunnel create laicai-panel
+  #   3. 把返回的 UUID 填到下面的 TUNNEL_TOKEN（或用 config.yml 方式）
+      # 最简方式：在 Cloudflare Zero Trust → Tunnels → Create Tunnel，
+      #           把生成的 token 填到下方 TUNNEL_TOKEN，然后在 Dashboard 里配路由。
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: laicai-tunnel
+    restart: always
+    command: tunnel run
+    environment:
+      # ┌─────────────────────────────────────────────────────────┐
+      # │  把下面这行替换为你的 Cloudflare Tunnel token           │
+      # │  获取方式见 deploy/NAS-DEPLOY.md 第 2-4 步              │
+      # │  或运行：export TUNNEL_TOKEN="你的token" 再 compose up  │
+      # └─────────────────────────────────────────────────────────┘
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-REPLACE_WITH_YOUR_TOKEN}
+    depends_on:
+      panel:
+        condition: service_healthy
+    # 如果暂时不用 Tunnel，注释掉整个 cloudflared service 即可
