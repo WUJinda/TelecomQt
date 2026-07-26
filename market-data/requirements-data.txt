@@ -1,0 +1,12 @@
+# market-data 管线依赖（独立 venv，与 backend 隔离）
+# 创建 venv:  D:\Programs\Python\Python312\python.exe -m venv .venv
+# 安装:       .venv\Scripts\python.exe -m pip install -r requirements-data.txt
+
+akshare>=1.13
+pandas>=2.2
+numpy>=1.26
+duckdb>=0.10
+pyarrow>=15
+requests>=2.31
+python-dotenv>=1.0
+rqdatac>=2.10          # 仅阶段2分钟K冷启动需要；试用账号见 .env
