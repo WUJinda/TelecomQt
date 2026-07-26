@@ -57,12 +57,47 @@ def _instrument_to_symbol_candidates(instrument: str) -> list[str]:
     return cands
 
 
-def fetch_klines(instrument: str) -> tuple[pd.DataFrame, str]:
-    """拉单合约全量历史日K。
+# market-data 管线的 Parquet store（与回测同源；优先读它统一 chart 与回测数据源）
+MARKET_DATA_STORE = Path(__file__).resolve().parents[1] / "market-data" / "store" / "daily"
 
-    返回 (标准化 DataFrame, 实际命中的 symbol)。
+
+def _load_from_store(instrument: str):
+    """从 market-data Parquet store 读日K。命中返回 (df, symbol)，未命中 (None, None)。
+
+    store 布局：market-data/store/daily/symbol=<SYM>/year=<YYYY>/part.parquet。
+    symbol 大写；郑商所 3/4 位歧义由 _instrument_to_symbol_candidates 候选回退处理。
+    """
+    if not MARKET_DATA_STORE.exists():
+        return None, None
+    for sym in _instrument_to_symbol_candidates(instrument):
+        sym_dir = MARKET_DATA_STORE / f"symbol={sym}"
+        parts = sorted(sym_dir.glob("year=*/part.parquet")) if sym_dir.exists() else []
+        if not parts:
+            continue
+        df = pd.concat([pd.read_parquet(p) for p in parts], ignore_index=True)
+        df["date"] = pd.to_datetime(df["date"])
+        for c in ("open", "high", "low", "close"):
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        df["volume"] = pd.to_numeric(df.get("volume", 0), errors="coerce").fillna(0).astype(int)
+        df = df.dropna(subset=["open", "high", "low", "close"])
+        df = df.sort_values("date").reset_index(drop=True)
+        return df[["date", "open", "high", "low", "close", "volume"]], sym
+    return None, None
+
+
+def fetch_klines(instrument: str, prefer_store: bool = True) -> tuple[pd.DataFrame, str, str]:
+    """取单合约日K。优先从 market-data store 读（与回测同源），未命中再 AKShare 在线拉。
+
+    返回 (标准化 DataFrame, 实际命中的 symbol, 来源) 来源 ∈ {"store","akshare"}。
     DataFrame 列：date / open / high / low / close / volume（date 为 Timestamp）。
     """
+    if prefer_store:
+        try:
+            df, sym = _load_from_store(instrument)
+        except Exception:                          # noqa: BLE001  store 读异常（缺 pyarrow 等）→ 回退 AKShare
+            df, sym = None, None
+        if df is not None:
+            return df, sym, "store"
     last_err = None
     for sym in _instrument_to_symbol_candidates(instrument):
         try:
@@ -80,7 +115,7 @@ def fetch_klines(instrument: str) -> tuple[pd.DataFrame, str]:
         df["volume"] = pd.to_numeric(df["volume"], errors="coerce").fillna(0).astype(int)
         df = df.dropna(subset=["open", "high", "low", "close"])
         df = df.sort_values("date").reset_index(drop=True)
-        return df[["date", "open", "high", "low", "close", "volume"]], sym
+        return df[["date", "open", "high", "low", "close", "volume"]], sym, "akshare"
     raise RuntimeError(f"拉取 {instrument} 失败，候选 symbol 均失败：{last_err}")
 
 
@@ -109,7 +144,7 @@ def _locate_date(df: pd.DataFrame, date_str: str) -> int:
     return int((df["date"] - target).abs().idxmin())
 
 
-def build_chart_from_klines(df, trade, params, instrument, direction, pre=20, post=5):
+def build_chart_from_klines(df, trade, params, instrument, direction, pre=60, post=5):
     """用真实 K 线 df 生成单笔 trade 的 chart 字段。
 
     输出结构与 laicai-bridge/build_chart.py::build_chart() 完全一致。
@@ -191,7 +226,7 @@ def build_chart_from_klines(df, trade, params, instrument, direction, pre=20, po
 
 # ---- 刷新 experiment.json ----
 
-def refresh_experiment(exp_dir: Path, pre=20, post=5, backup=True, verbose=True):
+def refresh_experiment(exp_dir: Path, pre=60, post=5, backup=True, verbose=True):
     """读 exp_dir/experiment.json，对每个有交易的 trade 用真实K线重算 chart，写回。
 
     backup=True 时首次运行另存 experiment.json.synth.bak（不覆盖已存在的备份）。
@@ -216,10 +251,10 @@ def refresh_experiment(exp_dir: Path, pre=20, post=5, backup=True, verbose=True)
         instrument = inst["instrument"]
         if instrument not in sym_cache:
             try:
-                df, sym = fetch_klines(instrument)
+                df, sym, src = fetch_klines(instrument)
                 sym_cache[instrument] = df
                 if verbose:
-                    print(f"  {instrument} → symbol={sym}，{len(df)} 根日K"
+                    print(f"  {instrument} → symbol={sym}（来源 {src}），{len(df)} 根日K"
                           f"（{df['date'].min().date()} ~ {df['date'].max().date()}）")
             except Exception as e:                 # noqa: BLE001
                 print(f"  [跳过] {instrument} 拉取失败：{e}")
@@ -252,7 +287,7 @@ def main():
     p = argparse.ArgumentParser(
         description="用 AKShare 真实日K刷新 experiment.json 的 chart 字段（替换合成数据）")
     p.add_argument("--exp", help="单个 experiment 目录路径；缺省则刷新默认 experiments 目录下所有报告")
-    p.add_argument("--pre", type=int, default=20, help="开仓前 K 线根数（默认 20）")
+    p.add_argument("--pre", type=int, default=60, help="开仓前 K 线根数（默认 60，约3个月日线）")
     p.add_argument("--post", type=int, default=5, help="平仓后 K 线根数（默认 5）")
     p.add_argument("--no-backup", action="store_true", help="不另存 .synth.bak 备份")
     p.add_argument("--symbol", help="仅预览：拉单个合约并打印 OHLCV（不写文件）")
@@ -261,8 +296,8 @@ def main():
     args = p.parse_args()
 
     if args.symbol:
-        df, sym = fetch_klines(args.symbol)
-        print(f"命中 symbol={sym}，共 {len(df)} 行（{df['date'].min().date()} ~ {df['date'].max().date()}）")
+        df, sym, src = fetch_klines(args.symbol)
+        print(f"命中 symbol={sym}（来源 {src}），共 {len(df)} 行（{df['date'].min().date()} ~ {df['date'].max().date()}）")
         lo = pd.Timestamp(args.frm) if args.frm else df["date"].min()
         hi = pd.Timestamp(args.to) if args.to else df["date"].max()
         print(df[(df["date"] >= lo) & (df["date"] <= hi)].to_string(index=False))

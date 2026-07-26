@@ -33,7 +33,8 @@
     .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px}
     .card .k{font-size:12px;color:var(--muted)}
     .card .v{font-size:20px;font-weight:600;margin-top:4px}
-    @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}
+    .metrics-4{grid-template-columns:repeat(2,1fr)!important}}
 
     /* 表格 */
     table{width:100%;border-collapse:collapse;font-size:13px}
@@ -90,6 +91,7 @@
       <button :class="tab==='reports' && 'active'" @click="switchTab('reports')">回测报告</button>
       <button :class="tab==='ideas' && 'active'" @click="switchTab('ideas')">策略想法</button>
       <button :class="tab==='plans' && 'active'" @click="switchTab('plans')">交易计划</button>
+      <button :class="tab==='symbols' && 'active'" @click="switchTab('symbols')">品种查询</button>
     </nav>
   </header>
 
@@ -174,9 +176,9 @@
           <div class="wrap">
             <div class="hd">
               <b>逐笔交易明细</b>
-              <select x-model.number="selectedInst" @change="renderChart()">
-                <template x-for="(inst,i) in current.instruments" :key="inst.instrument">
-                  <option :value="i" x-text="inst.instrument + ((inst.trade_count||0)>0 ? '（'+inst.trade_count+'笔）':'（无交易）')"></option>
+              <select x-model.number="selectedInst">
+                <template x-for="it in instsTraded()" :key="it.inst.instrument">
+                  <option :value="it.i" x-text="it.inst.instrument + '（' + (it.inst.trade_count||0) + '笔）'"></option>
                 </template>
               </select>
               <span class="muted" style="font-size:12px" x-show="curInst()">交易所 <span x-text="curInst()?.exchange"></span> · 周期 <span x-text="curInst()?.kline_style"></span> · 乘数 <span x-text="curInst()?.volume_multiple"></span></span>
@@ -240,6 +242,27 @@
                 <div class="hd"><b x-text="replayTitle()"></b></div>
                 <div id="kchart" x-ref="kchart" style="width:100%;height:400px"></div>
               </div>
+
+              <!-- 交易结论卡片 -->
+              <div class="metrics metrics-4" style="grid-template-columns:repeat(4,1fr);margin:14px 0 0">
+                <div class="card">
+                  <div class="k">收益</div>
+                  <div class="v" :class="pnlClass(curTrade()?.net_pnl)" x-text="fmtMoney(curTrade()?.net_pnl)"></div>
+                </div>
+                <div class="card">
+                  <div class="k">收益率</div>
+                  <div class="v" :class="pnlClass(curTrade()?.return_rate)" x-text="(curTrade()?.return_rate ?? 0) + '%'"></div>
+                </div>
+                <div class="card">
+                  <div class="k">开仓价格</div>
+                  <div class="v" x-text="curTrade()?.open_price ?? '—'"></div>
+                </div>
+                <div class="card">
+                  <div class="k">平仓价格</div>
+                  <div class="v" x-text="curTrade()?.close_price ?? '—'"></div>
+                </div>
+              </div>
+
               <div class="wrap" style="padding:14px;line-height:1.9">
                 <div x-text="curChart()?.summary"></div>
                 <div class="muted" style="margin-top:10px;font-size:12px">
@@ -313,13 +336,9 @@
       </div>
 
       <datalist id="instrument-list">
-        <option value="rb 螺纹钢"></option>
-        <option value="ag 白银"></option>
-        <option value="sn 锡"></option>
-        <option value="MA 甲醇"></option>
-        <option value="TA PTA"></option>
-        <option value="cu 铜"></option>
-        <option value="ni 镍"></option>
+        <template x-for="v in allSymbols" :key="v.prefix">
+          <option :value="v.prefix + ' ' + (v.name||'')"></option>
+        </template>
       </datalist>
 
       <template x-for="st in ['新想法','已转回测','已采纳','已搁置']" :key="st">
@@ -457,6 +476,79 @@
         </template>
       </div>
     </section>
+
+    <!-- ============ 品种查询 ============ -->
+    <section x-show="tab==='symbols'" x-init="$watch('tab', v => { if (v==='symbols' && !symbolsLoaded) loadSymbols() })">
+      <!-- 搜索栏 -->
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px;position:relative">
+            <input
+              x-model="symbolQuery"
+              @input="filterSymbols()"
+              type="text"
+              placeholder="输入品种名称（螺纹钢）或英文缩写（RB）或交易所（SHFE）…"
+              style="width:100%;padding:10px 14px;font-size:15px"
+              x-ref="symbolSearch"
+            >
+          </div>
+          <button class="btn" @click="symbolQuery=''; filterSymbols()" x-show="symbolQuery">清除</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:8px">
+          支持模糊搜索：中文品种名 · 英文代码 · 交易所缩写 · 共 <span x-text="allSymbols.length"></span> 个品种
+        </div>
+      </div>
+
+      <!-- 品种分组表格 -->
+      <template x-for="ex in symbolExchanges" :key="ex">
+        <div class="wrap" style="margin-bottom:14px" x-show="filteredSymbolsByExchange(ex).length">
+          <div class="hd">
+            <b x-text="exFullName(ex)"></b>
+            <span class="pill" x-text="filteredSymbolsByExchange(ex).length"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th class="l">代码</th>
+                  <th class="l">名称</th>
+                  <th>交易所</th>
+                  <th>乘数</th>
+                  <th>已有合约</th>
+                  <th>合约明细</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="v in filteredSymbolsByExchange(ex)" :key="v.prefix">
+                  <tr>
+                    <td class="l">
+                      <b x-text="v.prefix.toUpperCase()"></b>
+                    </td>
+                    <td class="l" x-text="v.name || '—'"></td>
+                    <td x-text="v.exchange"></td>
+                    <td x-text="v.multiplier"></td>
+                    <td>
+                      <span :class="v.has_data ? 'pos' : 'muted'" x-text="v.has_data ? v.contract_count + ' 个' : '无'"></span>
+                    </td>
+                    <td class="l">
+                      <template x-if="v.contracts.length">
+                        <span class="muted" style="font-size:12px" x-text="v.contracts.map(c => c.symbol).join(', ')"></span>
+                      </template>
+                      <template x-if="!v.contracts.length">
+                        <span class="muted" style="font-size:12px">—</span>
+                      </template>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </template>
+
+      <div x-show="!symbolsLoaded" class="skel">加载中…</div>
+      <div x-show="symbolsLoaded && filteredSymbols.length===0" class="empty">未找到匹配「<span x-text="symbolQuery"></span>」的品种</div>
+    </section>
   </main>
 </div>
 
@@ -484,6 +576,12 @@
       plans: [],
       planEditingId: null,
       planForm: { instrument:'', direction:'多', planned_entry:'', stop_loss:'', target:'', volume:'', planned_date:'', status:'计划中', actual_entry:'', actual_pnl:'', note:'', author:'DAREWIN' },
+
+      // ===== 品种查询 =====
+      symbolsLoaded: false,
+      allSymbols: [],          // 后端返回的全部品种
+      symbolQuery: '',         // 搜索关键词
+      filteredSymbols: [],     // 过滤后的品种列表
 
       async init() {
         await this.loadList();
@@ -530,6 +628,7 @@
         this.tab = t;
         if (t === 'ideas') this.loadIdeas();
         else if (t === 'plans') this.loadPlans();
+        else if (t === 'symbols' && !this.symbolsLoaded) this.loadSymbols();
       },
 
       // ===== 想法 CRUD =====
@@ -641,11 +740,54 @@
       plansByStatus(st) { return this.plans.filter(p => p.status === st); },
       parsePnl(s) { const m = String(s == null ? '' : s).replace(/[^0-9.-]/g, ''); const n = Number(m); return isNaN(n) ? null : n; },
 
+      // ===== 品种查询 =====
+      async loadSymbols() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/symbols');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          this.allSymbols = data.varieties || [];
+          this.filteredSymbols = this.allSymbols;
+          this.symbolsLoaded = true;
+        } catch (e) { this.error = '加载品种数据失败：' + e.message; console.error(e); }
+      },
+      filterSymbols() {
+        const q = this.symbolQuery.trim().toLowerCase();
+        if (!q) { this.filteredSymbols = this.allSymbols; return; }
+        this.filteredSymbols = this.allSymbols.filter(v => {
+          const hay = (v.prefix + ' ' + (v.name||'') + ' ' + (v.exchange||'')).toLowerCase();
+          return hay.includes(q);
+        });
+      },
+      get symbolExchanges() {
+        return [...new Set(this.filteredSymbols.map(v => v.exchange))].sort();
+      },
+      filteredSymbolsByExchange(ex) {
+        return this.filteredSymbols.filter(v => v.exchange === ex);
+      },
+      exFullName(ex) {
+        const map = { SHFE: '上海期货交易所 (SHFE)', DCE: '大连商品交易所 (DCE)', CZCE: '郑州商品交易所 (CZCE)', '?': '其他' };
+        return map[ex] || ex;
+      },
+
       s() { return (this.current && this.current.summary) || {}; },
       curInst() { return this.current && this.current.instruments && this.current.instruments[this.selectedInst]; },
+      // 下拉框只列有交易的品种；it.i 保留原 instruments 数组索引，故 curInst()/selectedInst 无需改动。
+      // 无交易品种不进下拉框（靠指标卡"有交易品种 X/Y"体现），避免"切到无交易品种但曲线还在"的困惑。
+      instsTraded() {
+        if (!this.current) return [];
+        return this.current.instruments
+          .map((inst, i) => ({ inst, i }))
+          .filter(o => (o.inst.trade_count || 0) > 0);
+      },
 
       renderChart() {
-        const el = this.$refs.chart;
+        // Alpine 3 的 x-ref 在 <template x-if> 动态插入的 DOM 上有绑定延迟/不注册问题：
+        // open() 后 this.$refs.chart 可能长期为 undefined（即使 #chart 已在 DOM 里且可见），
+        // 导致首次进入报告曲线画不出，要手动切品种触发 effect flush 后 $refs 才绑定。
+        // fallback 到 getElementById，#chart 一插入 DOM 就能立即拿到。
+        const el = this.$refs.chart || document.getElementById('chart');
         // open() 里 current 赋值后用 $nextTick 调本函数，但此时 Alpine x-if 的详情 DOM
         // 可能还没插入（$refs.chart 为 undefined），或刚插入尚未布局（offsetWidth/Height 为 0）。
         // echarts 在 0 尺寸宿主上 init 会建 0 尺寸实例且之后不自动恢复——表现为首次进入
@@ -726,6 +868,11 @@
         this._atCache = out;
         return out;
       },
+      curTrade() {
+        const at = this.allTrades();
+        const it = at[this.selectedTrade];
+        return (it && it.trade) || null;
+      },
       curChart() {
         const at = this.allTrades();
         const it = at[this.selectedTrade];
@@ -739,13 +886,25 @@
       },
 
       renderKline() {
-        const el = this.$refs.kchart;
+        // 同 renderChart：x-ref 在 <template x-if> 动态 DOM 上可能不绑定，fallback 到 getElementById；
+        // 切到 replay 时 kchart 父容器刚 display:block 可能尚未布局，RAF 等到就绪再 init。
+        const el = this.$refs.kchart || document.getElementById('kchart');
+        if (this.current && (!el || !el.offsetWidth || !el.offsetHeight) && (this._kchartRetry | 0) < 30) {
+          this._kchartRetry = (this._kchartRetry | 0) + 1;
+          requestAnimationFrame(() => this.renderKline());
+          return;
+        }
+        this._kchartRetry = 0;
         if (!el) return;
         const at = this.allTrades();
         if (!at.length) return;
         const item = at[this.selectedTrade];
         const chart = item && item.trade && item.trade.chart;
-        if (!chart) { if (this._kchart) { this._kchart.dispose(); this._kchart = null; } return; }
+        if (!chart) {
+          const s = echarts.getInstanceByDom(el); if (s) s.dispose();
+          this._kchart = null; el.innerHTML = '';
+          return;
+        }
 
         const klines = chart.klines;
         const cats = klines.map(k => k.date);
@@ -770,16 +929,19 @@
         if (m.take_profit != null) markLines.push({ yAxis: m.take_profit, lineStyle: { type: 'dotted', color: '#4f9dff', opacity: 0.5 }, label: { formatter: '止盈·中轨', color: '#4f9dff', fontSize: 10 } });
         if (has(oD) && has(cD)) markLines.push([{ coord: [oD, m.open.price] }, { coord: [cD, m.close.price], lineStyle: { type: 'dashed', color: '#e5484d', opacity: 0.4 } }]);
 
-        if (this._kchart) this._kchart.dispose();
+        const stale = echarts.getInstanceByDom(el);
+        if (stale) stale.dispose();
+        this._kchart = null;
+        el.innerHTML = '';
         this._kchart = echarts.init(el, 'dark');
         this._kchart.setOption({
           backgroundColor: 'transparent',
           legend: { data: ['布林上轨', '中轨(止盈)', '布林下轨'], top: 0, textStyle: { color: '#8b93a1' } },
-          grid: { left: 62, right: 18, top: 36, bottom: 54 },
+          grid: { left: 62, right: 18, top: 36, bottom: 28 },
           tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-          xAxis: { type: 'category', data: cats, scale: true, axisLabel: { color: '#8b93a1', fontSize: 10 } },
+          xAxis: { type: 'category', data: cats, scale: true, boundaryGap: true, axisLabel: { color: '#8b93a1', fontSize: 10 } },
           yAxis: { scale: true, axisLabel: { color: '#8b93a1' }, splitLine: { lineStyle: { color: '#2a2f3a' } } },
-          dataZoom: [{ type: 'inside' }, { type: 'slider', height: 18, bottom: 10 }],
+          dataZoom: [{ type: 'inside', zoomOnMouseWheel: true, moveOnMouseWheel: false, moveOnMouseMove: true }],
           series: [
             { name: '布林上轨', type: 'line', data: up, smooth: true, symbol: 'none', lineStyle: { width: 1, opacity: 0.5, color: '#e5484d' } },
             { name: '中轨(止盈)', type: 'line', data: mid, smooth: true, symbol: 'none', lineStyle: { width: 1.2, opacity: 0.7, color: '#4f9dff' } },
