@@ -80,6 +80,8 @@
     .btn.sm{font-size:12px;padding:3px 8px}
     .btn.danger{border-color:var(--pos);color:#ffb3b6}
     .btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
+    .ref-link{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent);cursor:pointer}
+    .ref-link:hover{opacity:0.8}
   </style>
 </head>
 <body>
@@ -92,6 +94,7 @@
       <button :class="tab==='ideas' && 'active'" @click="switchTab('ideas')">策略想法</button>
       <button :class="tab==='plans' && 'active'" @click="switchTab('plans')">交易计划</button>
       <button :class="tab==='symbols' && 'active'" @click="switchTab('symbols')">品种查询</button>
+      <button :class="tab==='analytics' && 'active'" @click="switchTab('analytics')">统计报告</button>
     </nav>
   </header>
 
@@ -361,7 +364,7 @@
                 <div class="row" x-show="it.entry_condition"><b>开仓：</b><span x-text="it.entry_condition"></span></div>
                 <div class="row" x-show="it.exit_condition"><b>平仓：</b><span x-text="it.exit_condition"></span></div>
                 <div class="row" x-show="it.stop_loss || it.take_profit"><b x-show="it.stop_loss">止损：</b><span x-show="it.stop_loss" x-text="it.stop_loss"></span><span x-show="it.stop_loss && it.take_profit">　</span><b x-show="it.take_profit">止盈：</b><span x-show="it.take_profit" x-text="it.take_profit"></span></div>
-                <div class="row" x-show="it.note" x-text="it.note"></div>
+                <div class="row" x-show="it.note" x-html="renderRef(it.note)"></div>
                 <div class="acts">
                   <template x-for="ns in ['新想法','已转回测','已采纳','已搁置']" :key="ns">
                     <button class="btn sm" x-show="ns!==it.status" @click="setIdeaStatus(it, ns)" x-text="'→ '+ns"></button>
@@ -549,6 +552,149 @@
       <div x-show="!symbolsLoaded" class="skel">加载中…</div>
       <div x-show="symbolsLoaded && filteredSymbols.length===0" class="empty">未找到匹配「<span x-text="symbolQuery"></span>」的品种</div>
     </section>
+
+    <!-- ============ 统计报告 ============ -->
+    <section x-show="tab==='analytics'" x-init="$watch('tab', v => { if (v==='analytics' && !analyticsLoaded) loadAnalytics() })">
+
+      <!-- 列表视图 -->
+      <template x-if="tab==='analytics' && !currentReport">
+        <div>
+          <div class="metrics" style="grid-template-columns:1fr">
+            <div class="card">
+              <div class="k">统计报告</div>
+              <div class="v" style="font-size:14px;color:var(--muted)">策略统计、形态分析、参数优化报告</div>
+            </div>
+          </div>
+          <template x-for="r in analyticsList" :key="r.report_id">
+            <div class="wrap" style="cursor:pointer;margin-bottom:12px" @click="openReport(r.report_id)">
+              <div class="hd">
+                <b x-text="r.title"></b>
+                <span class="pill" x-text="r.strategy_type || '—'"></span>
+              </div>
+              <div class="muted" style="font-size:13px;line-height:1.6;padding:4px 0" x-text="r.description"></div>
+              <div class="muted" style="font-size:12px;margin-top:4px">
+                <span x-text="r.created_at?.slice(0,10) || '—'"></span>
+              </div>
+            </div>
+          </template>
+          <div x-show="analyticsLoaded && analyticsList.length===0" class="empty">暂无统计报告</div>
+          <div x-show="!analyticsLoaded" class="skel">加载中…</div>
+        </div>
+      </template>
+
+      <!-- 详情视图 -->
+      <template x-if="tab==='analytics' && currentReport">
+        <div>
+          <div style="margin-bottom:14px">
+            <button class="btn" @click="currentReport=null; subtab=''">← 返回列表</button>
+          </div>
+
+          <!-- 报告标题 -->
+          <div class="wrap" style="margin-bottom:14px">
+            <div class="hd">
+              <b x-text="currentReport.title"></b>
+              <span class="pill" x-text="currentReport.strategy_type || '—'"></span>
+            </div>
+            <template x-if="currentReport.description">
+              <div class="muted" style="font-size:13px;line-height:1.8;padding:8px 0;white-space:pre-wrap" x-html="renderRef(currentReport.description)"></div>
+            </template>
+          </div>
+
+          <!-- 汇总卡片 -->
+          <template x-if="currentReport.summary && currentReport.summary.length">
+            <div class="metrics" :style="`grid-template-columns:repeat(${Math.min(currentReport.summary.length, 6)},1fr)`">
+              <template x-for="s in currentReport.summary" :key="s.label">
+                <div class="card">
+                  <div class="k" x-text="s.label"></div>
+                  <div class="v" style="font-size:16px" x-text="s.value"></div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- 章节内容 -->
+          <template x-for="(sec, si) in (currentReport.sections||[])" :key="si">
+            <div class="wrap" style="margin-top:14px">
+              <div class="hd"><b x-text="sec.title"></b></div>
+              <template x-if="sec.content">
+                <div style="padding:8px 0;line-height:1.8;font-size:13px;white-space:pre-wrap" x-text="sec.content"></div>
+              </template>
+              <!-- 数据表格 -->
+              <template x-for="(tbl, ti) in (sec.tables||[])" :key="ti">
+                <div style="margin-top:10px">
+                  <template x-if="tbl.caption">
+                    <div class="muted" style="font-size:12px;margin-bottom:4px" x-text="tbl.caption"></div>
+                  </template>
+                  <div style="overflow-x:auto">
+                    <table>
+                      <thead>
+                        <tr>
+                          <template x-for="(h, hi) in tbl.headers" :key="hi">
+                            <th :class="hi===0 && 'l'" x-text="h"></th>
+                          </template>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <template x-for="(row, ri) in tbl.rows" :key="ri">
+                          <tr>
+                            <template x-for="(cell, ci) in row" :key="ci">
+                              <td :class="ci===0 && 'l'" x-text="cell"></td>
+                            </template>
+                          </tr>
+                        </template>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- 分析结论区 -->
+          <div class="wrap" style="margin-top:14px">
+            <div class="hd"><b>分析结论</b></div>
+            <template x-for="c in (currentReport.comments||[]).filter(c => c.conclusion)" :key="c.id">
+              <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+                <div style="font-size:13px;line-height:1.8" x-text="c.content"></div>
+                <div class="muted" style="font-size:12px;margin-top:4px">
+                  <b x-text="c.author"></b> · <span x-text="c.created_at?.slice(0,16).replace('T',' ') || ''"></span>
+                  <button class="btn" style="margin-left:8px;padding:2px 8px;font-size:11px" @click="deleteComment(c.id)">删除</button>
+                </div>
+              </div>
+            </template>
+            <div x-show="!(currentReport.comments||[]).some(c => c.conclusion)" class="muted" style="padding:8px 0;font-size:13px">暂无正式结论</div>
+          </div>
+
+          <!-- 评论区 -->
+          <div class="wrap" style="margin-top:14px">
+            <div class="hd"><b>评论与讨论</b></div>
+            <template x-for="c in (currentReport.comments||[]).filter(c => !c.conclusion)" :key="c.id">
+              <div style="padding:10px 0;border-bottom:1px solid var(--border)">
+                <div style="font-size:13px;line-height:1.8" x-text="c.content"></div>
+                <div class="muted" style="font-size:12px;margin-top:4px">
+                  <b x-text="c.author"></b> · <span x-text="c.created_at?.slice(0,16).replace('T',' ') || ''"></span>
+                  <button class="btn" style="margin-left:8px;padding:2px 8px;font-size:11px" @click="deleteComment(c.id)">删除</button>
+                </div>
+              </div>
+            </template>
+            <div x-show="!(currentReport.comments||[]).some(c => !c.conclusion)" class="muted" style="padding:8px 0;font-size:13px">暂无评论</div>
+
+            <!-- 发表评论 -->
+            <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border)">
+              <textarea x-model="commentForm.content" placeholder="写下你的评论或分析…" style="width:100%;min-height:70px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-size:13px;resize:vertical"></textarea>
+              <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+                <input x-model="commentForm.author" placeholder="署名" style="width:120px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--text);font-size:13px">
+                <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:4px;cursor:pointer">
+                  <input type="checkbox" x-model="commentForm.conclusion"> 标记为正式分析结论
+                </label>
+                <button class="btn" style="margin-left:auto" @click="submitComment()" :disabled="!commentForm.content.trim()">提交</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+    </section>
   </main>
 </div>
 
@@ -583,8 +729,16 @@
       symbolQuery: '',         // 搜索关键词
       filteredSymbols: [],     // 过滤后的品种列表
 
+      // ===== 统计报告 =====
+      analyticsLoaded: false,
+      analyticsList: [],
+      currentReport: null,
+      commentForm: { author:'DAREWIN', content:'', conclusion:false },
+
       async init() {
         await this.loadList();
+        // 注册全局回调供交叉引用链接使用
+        window.__openReport = (id) => this.openReportById(id);
         window.addEventListener('resize', () => {
           if (this._chart && this.$refs.chart && this.$refs.chart.offsetWidth) this._chart.resize();
           if (this._kchart && this.$refs.kchart && this.$refs.kchart.offsetWidth) this._kchart.resize();
@@ -629,6 +783,7 @@
         if (t === 'ideas') this.loadIdeas();
         else if (t === 'plans') this.loadPlans();
         else if (t === 'symbols' && !this.symbolsLoaded) this.loadSymbols();
+        else if (t === 'analytics' && !this.analyticsLoaded) this.loadAnalytics();
       },
 
       // ===== 想法 CRUD =====
@@ -769,6 +924,48 @@
       exFullName(ex) {
         const map = { SHFE: '上海期货交易所 (SHFE)', DCE: '大连商品交易所 (DCE)', CZCE: '郑州商品交易所 (CZCE)', '?': '其他' };
         return map[ex] || ex;
+      },
+
+      // ===== 统计报告 =====
+      async loadAnalytics() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/analytics');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.analyticsList = await r.json();
+          this.analyticsLoaded = true;
+        } catch (e) { this.error = '加载统计报告失败：' + e.message; console.error(e); }
+      },
+      async openReport(id) {
+        this.error = '';
+        try {
+          const r = await fetch(`/api/analytics/${id}`);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.currentReport = await r.json();
+        } catch (e) { this.error = '加载报告详情失败：' + e.message; console.error(e); }
+      },
+      async submitComment() {
+        if (!this.commentForm.content.trim() || !this.currentReport) return;
+        try {
+          const r = await fetch(`/api/analytics/${this.currentReport.report_id}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.commentForm),
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.commentForm.content = '';
+          this.commentForm.conclusion = false;
+          // 重新加载评论
+          await this.openReport(this.currentReport.report_id);
+        } catch (e) { this.error = '提交评论失败：' + e.message; }
+      },
+      async deleteComment(id) {
+        if (!confirm('确定删除这条评论？')) return;
+        try {
+          const r = await fetch(`/api/analytics/comments/${id}`, { method: 'DELETE' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          await this.openReport(this.currentReport.report_id);
+        } catch (e) { this.error = '删除失败：' + e.message; }
       },
 
       s() { return (this.current && this.current.summary) || {}; },
@@ -958,6 +1155,21 @@
 
       // ---- 格式化 ----
       fmtTime(s) { if (!s) return ''; return s.replace('T', ' '); },
+      renderRef(text) {
+        if (!text) return '';
+        // 先 HTML 转义防止 XSS，再替换交叉引用
+        let esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        return esc.replace(/\[\[report:([\w-]+)\]\]/g, (match, id) => {
+          return `<a href="#" data-report-id="${id}" class="ref-link" onclick="event.preventDefault();window.__openReport('${id}')">📊 查看统计报告</a>`;
+        });
+      },
+      async openReportById(id) {
+        // 从交叉引用跳转
+        if (this.tab !== 'analytics') this.switchTab('analytics');
+        this.$nextTick(() => this.openReport(id));
+      },
+
+      // ===== 想法 CRUD =====
       fmtMoney(n) { if (n == null || n === '') return '—'; const v = Number(n); return (v >= 0 ? '+' : '') + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }); },
       dirLabel(d) { return d === 'short' ? '做空' : d === 'long' ? '做多' : (d || '—'); },
       pnlClass(n) { if (n == null) return ''; return Number(n) > 0 ? 'pos' : Number(n) < 0 ? 'neg' : ''; },

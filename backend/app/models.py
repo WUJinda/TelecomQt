@@ -99,3 +99,18 @@ class PlanUpdate(SQLModel):
     actual_pnl: Optional[str] = None
     note: Optional[str] = None
     author: Optional[str] = None
+
+
+# ============ 统计报告评论 ============
+
+class AnalyticsComment(SQLModel, table=True):
+    """统计报告的评论 / 分析结论。
+
+    report_id 关联 backend/data/analytics/ 下的 JSON 报告文件名（不含 .json）。
+    comment_type 区分普通评论和正式分析结论。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    report_id: str = Field(index=True)
+    author: str = Field(default=DEFAULT_AUTHOR)
+    content: str = Field(default="")
+    conclusion: bool = Field(default=False)          # True = 正式分析结论
+    created_at: datetime = Field(default_factory=datetime.now)

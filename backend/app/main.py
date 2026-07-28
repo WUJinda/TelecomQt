@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .routers import ideas, plans, reports, symbols
+from .routers import analytics, ideas, plans, reports, symbols
 
 # 前端目录：默认源码树 TelecomQt/frontend；Docker 里用环境变量覆盖
 _FRONTEND_DEFAULT = Path(__file__).resolve().parents[2] / "frontend"
@@ -37,6 +37,7 @@ app.include_router(reports.router, prefix="/api", tags=["reports"])
 app.include_router(ideas.router, prefix="/api", tags=["ideas"])
 app.include_router(plans.router, prefix="/api", tags=["plans"])
 app.include_router(symbols.router, prefix="/api", tags=["symbols"])
+app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 
 
 # 静态资源（本地 vendored 的 echarts/alpine；没有则前端走 CDN）
