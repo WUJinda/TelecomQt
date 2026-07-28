@@ -1,0 +1,41 @@
+# ============================================================
+# Gitea + 自动部署（NAS 上使用）
+# ------------------------------------------------------------
+# 使用方式：
+#   1. 把整个 deploy/gitea/ 目录上传到 NAS
+#   2. 修改下方 PROJECT_DIR 变量为你的 NAS 项目实际路径
+#   3. 在此目录执行：docker compose up -d --build
+#
+# 前提：NAS 上已安装 Docker + docker compose
+# ============================================================
+
+services:
+  gitea:
+    # 自定义镜像：官方 Gitea + Docker CLI（用于 post-receive hook 触发部署）
+    build:
+      context: .
+      dockerfile: Dockerfile.gitea
+    container_name: gitea
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    volumes:
+      # Gitea 数据（仓库、配置、数据库）
+      - ./gitea-data:/data
+      # ── Docker socket：让 Gitea 容器能控制宿主机 Docker ──
+      # post-receive hook 中执行 docker compose 郠的是宿主机的 Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock
+      # ── 项目目录：路径必须与宿主机完全一致 ──
+      # 这是关键：容器内外路径相同，docker compose 的相对路径才能正确解析
+      #
+      # ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+      # ↓↓  改成你 NAS 上 TelecomQt 的实际路径  ↓↓
+      # ↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓
+      - /share/TelecomQt:/share/TelecomQt
+      # 时区（让 git log 时间正确）
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "3000:3000"   # Gitea Web UI
+      - "2222:22"     # Git SSH（可选；用 HTTPS push 时不需要映射）
+    restart: always

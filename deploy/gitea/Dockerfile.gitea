@@ -1,0 +1,15 @@
+# ============================================================
+# 自定义 Gitea 镜像：官方版本 + Docker CLI
+# ------------------------------------------------------------
+# 用途：让 Gitea 的 post-receive hook 能通过 Docker socket
+#       控制宿主机 Docker，实现 push 即自动部署。
+#
+# 构建方式（在 NAS 上）：
+#   cd deploy/gitea
+#   docker compose up -d --build
+# ============================================================
+
+FROM gitea/gitea:latest
+
+USER root
+RUN apk add --no-cache docker-cli docker-cli-compose
