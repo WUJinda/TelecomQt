@@ -19,7 +19,7 @@
 
 配置：
     首次使用前，复制 .env.example 为 .env 并填入 NAS 地址和令牌：
-        cp .env.example .env
+        cp .env.example ..env
         # 编辑 .env 填入 PANEL_HOST 和 DEPLOY_TOKEN
 
     或通过命令行参数 / 环境变量指定。
@@ -31,18 +31,25 @@
     python sync_to_nas.py                           # 3. 推送到 NAS
 
     # 或者三步合一：
-    .venv/Scripts/python.exe batch_fetch_all.py && \\
-    .venv/Scripts/python.exe batch_export_all.py && \\
+    .venv/Scripts/python.exe batch_fetch_all.py && \
+    .venv/Scripts/python.exe batch_export_all.py && \
     python sync_to_nas.py
 """
 from __future__ import annotations
 
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+# 强制禁用系统代理（Clash 等代理工具会大幅拖慢 Cloudflare Tunnel 请求）
+os.environ["NO_PROXY"] = "*"
+os.environ["no_proxy"] = "*"
 
 try:
     import requests
+    from requests.adapters import HTTPAdapter
 except ImportError:
     print("错误：需要 requests 库。pip install requests")
     sys.exit(1)
@@ -64,10 +71,67 @@ DEPLOY_TOKEN = os.environ.get("DEPLOY_TOKEN", "")
 # exports 目录（相对于本文件）
 EXPORT_DIR = Path(__file__).resolve().parent / "exports"
 
+# 并发上传线程数（Cloudflare Tunnel 延迟高，并发能显著提速）
+_MAX_WORKERS = 5
+
+# requests session（禁用代理，复用连接池）
+_session = requests.Session()
+_session.trust_env = False  # 关键：不读取系统代理设置
+_session.proxies = {"http": None, "https": None}
+
+
+def _upload_one(url: str, headers: dict, subdir: str, filepath: Path) -> tuple[str, bool, str]:
+    """上传单个文件，返回 (文件名, 是否成功, 消息)。"""
+    try:
+        with open(filepath, "rb") as f:
+            resp = _session.post(
+                url,
+                headers=headers,
+                files=[("files", (f"{subdir}/{filepath.name}", f))],
+                timeout=60,
+            )
+        if resp.status_code == 200:
+            return (filepath.name, True, "OK")
+        else:
+            return (filepath.name, False, f"HTTP {resp.status_code}")
+    except Exception as e:
+        return (filepath.name, False, str(e))
+
+
+def _upload_zip(url: str, headers: dict, subdir: str, files: list[Path]) -> tuple[int, int, str]:
+    """打包 ZIP 上传，返回 (成功数, 失败数, 消息)。"""
+    import zipfile
+    import io
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in files:
+            zf.write(f, f"{subdir}/{f.name}")
+
+    raw_size = sum(f.stat().st_size for f in files)
+    zip_size = buf.tell()
+    buf.seek(0)
+
+    resp = _session.post(
+        url,
+        headers=headers,
+        files={"file": ("exports.zip", buf, "application/zip")},
+        timeout=300,
+    )
+
+    if resp.status_code == 200:
+        data = resp.json()
+        ok = len(data.get("uploaded", []))
+        err = len(data.get("errors", []))
+        msg = f"raw={raw_size//1024}KB zip={zip_size//1024}KB ratio={zip_size*100//raw_size}%"
+        return (ok, err, msg)
+    else:
+        return (0, len(files), f"HTTP {resp.status_code}: {resp.text[:200]}")
+
 
 def sync_market_data(host: str, token: str, symbols: list[str] | None = None,
                      subdir: str = "D1") -> None:
-    """推送 exports/<subdir>/ 下的 JSON 文件到 NAS。
+    """推送 exports/<subdir>/ 下的 JSON 文件到 NAS（并发上传）。
 
     Args:
         host: 面板地址（如 https://panel.darewin.icu）
@@ -84,8 +148,7 @@ def sync_market_data(host: str, token: str, symbols: list[str] | None = None,
     if symbols:
         files_to_send = []
         for sym in symbols:
-            # 尝试小写和原始大小写
-            for pattern in [f"{sym.lower()}_kline.json", f"{sym}_kline.json", f"{sym}_kline.json"]:
+            for pattern in [f"{sym.lower()}_kline.json", f"{sym}_kline.json"]:
                 p = src_dir / pattern
                 if p.exists():
                     files_to_send.append(p)
@@ -99,55 +162,25 @@ def sync_market_data(host: str, token: str, symbols: list[str] | None = None,
         print("没有文件可推送")
         return
 
-    print(f"准备推送 {len(files_to_send)} 个文件到 {host}")
-    print(f"  源目录：{src_dir}")
-    print(f"  目标：  {host}/api/data/sync")
-    print()
-
-    # 构建 multipart 表单
-    url = f"{host.rstrip('/')}/api/data/sync"
+    url = f"{host.rstrip('/')}/api/data/sync-zip"
     headers = {"Authorization": f"Bearer {token}"}
 
-    opened_files = []
-    multipart_files = []
-    try:
-        for f in files_to_send:
-            fh = open(f, "rb")
-            opened_files.append(fh)
-            # 文件名带上子目录前缀，让服务端知道放哪个目录
-            multipart_files.append(("files", (f"{subdir}/{f.name}", fh)))
+    total = len(files_to_send)
+    total_size = sum(f.stat().st_size for f in files_to_send)
+    print(f"准备推送 {total} 个文件（{total_size / 1024 / 1024:.1f}MB）到 {host}")
+    print(f"  方式：ZIP 压缩单次上传")
+    print()
 
-        print("上传中...")
-        resp = requests.post(url, headers=headers, files=multipart_files, timeout=120)
-
-        if resp.status_code == 200:
-            data = resp.json()
-            print(f"\n✅ 推送成功！")
-            print(f"   上传文件：{len(data.get('uploaded', []))} 个")
-            for name in data.get("uploaded", []):
-                print(f"   ✓ {name}")
-            if data.get("errors"):
-                print(f"   失败文件：{len(data['errors'])} 个")
-                for err in data["errors"]:
-                    print(f"   ✗ {err['file']}: {err['error']}")
-            print(f"\n   数据已写入 NAS 的 exports 目录，面板实时生效。")
-        elif resp.status_code == 403:
-            print(f"\n❌ 认证失败（{resp.status_code}）")
-            if "DEPLOY_TOKEN" in resp.text:
-                print("   NAS 端未配置 DEPLOY_TOKEN 环境变量。")
-                print("   请在 docker-compose.yml 的 panel 服务中添加：")
-                print('     environment:')
-                print('       - DEPLOY_TOKEN=你的密钥')
-            else:
-                print("   Token 不正确，请检查 .env 中的 DEPLOY_TOKEN。")
-            sys.exit(1)
-        else:
-            print(f"\n❌ 推送失败（HTTP {resp.status_code}）")
-            print(f"   {resp.text[:500]}")
-            sys.exit(1)
-    finally:
-        for fh in opened_files:
-            fh.close()
+    t0 = time.time()
+    ok_count, err_count, detail = _upload_zip(url, headers, subdir, files_to_send)
+    elapsed = time.time() - t0
+    print(f"  压缩: {detail}")
+    print()
+    if err_count == 0:
+        print(f"[OK] 全部推送成功! {ok_count} 个文件, 耗时 {elapsed:.1f}s")
+    else:
+        print(f"[!] 推送完成: {ok_count} 成功, {err_count} 失败, 耗时 {elapsed:.1f}s")
+    print(f"\n   数据已写入 NAS 的 exports 目录，面板实时生效。")
 
 
 def sync_experiment(host: str, token: str, exp_file: str) -> None:
@@ -165,21 +198,21 @@ def sync_experiment(host: str, token: str, exp_file: str) -> None:
     print(f"  目标：{url}")
 
     with open(fpath, "rb") as f:
-        resp = requests.post(
+        resp = _session.post(
             url,
             headers=headers,
             files={"file": (fpath.name, f)},
             data={"experiment_id": exp_id},
-            timeout=60,
+            timeout=120,
         )
 
     if resp.status_code == 200:
         data = resp.json()
-        print(f"\n✅ 实验数据推送成功！")
+        print(f"\n[OK] 实验数据推送成功!")
         print(f"   experiment_id: {data['experiment_id']}")
         print(f"   写入路径: {data['path']}")
     else:
-        print(f"\n❌ 推送失败（HTTP {resp.status_code}）")
+        print(f"\n[FAIL] 推送失败 (HTTP {resp.status_code})")
         print(f"   {resp.text[:500]}")
         sys.exit(1)
 
@@ -203,6 +236,8 @@ def main():
     p.add_argument("--token", default=DEPLOY_TOKEN, help="DEPLOY_TOKEN（默认从 .env 读取）")
     p.add_argument("--subdir", default="D1", help="exports 子目录（D1/H2/H4，默认 D1）")
     p.add_argument("--experiment", help="推送单个 experiment.json 文件")
+    p.add_argument("--workers", type=int, default=_MAX_WORKERS,
+                   help=f"并发上传线程数（默认 {_MAX_WORKERS}）")
     args = p.parse_args()
 
     if not args.token:
@@ -212,6 +247,10 @@ def main():
         print("  DEPLOY_TOKEN=你的密钥")
         print("\n或在命令行指定：--token YOUR_TOKEN")
         sys.exit(1)
+
+    # 运行时调整并发数（通过模块级变量传给 sync_market_data）
+    import sync_to_nas as _self
+    _self._MAX_WORKERS = args.workers
 
     if args.experiment:
         sync_experiment(args.host, args.token, args.experiment)

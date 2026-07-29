@@ -14,10 +14,12 @@ POST /api/data/sync-experiment
 """
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
 import tempfile
+import zipfile
 from datetime import datetime
 from pathlib import Path
 
@@ -121,6 +123,82 @@ async def sync_market_data(
             errors.append({"file": name, "error": str(e)})
             if 'tmp_path' in dir():
                 tmp_path.unlink(missing_ok=True)
+
+    return {
+        "status": "ok" if not errors else "partial",
+        "uploaded": uploaded,
+        "errors": errors,
+        "export_dir": str(_EXPORT_DIR),
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@router.post("/data/sync-zip")
+async def sync_market_data_zip(
+    file: UploadFile = File(...),
+    authorization: str | None = Header(None),
+):
+    """上传一个 ZIP 文件，批量解压写入 exports/ 目录。
+
+    适用于网络带宽有限的场景：客户端先将所有 JSON 压缩成 ZIP
+    （8.9MB JSON ≈ 1MB ZIP），单次请求传完。
+
+    用法（curl 示例）：
+        # 客户端打包
+        cd market-data/exports && zip -r /tmp/d1.zip D1/
+        # 上传
+        curl -X POST https://panel.darewin.icu/api/data/sync-zip \\
+          -H "Authorization: Bearer YOUR_TOKEN" \\
+          -F "file=@/tmp/d1.zip"
+    """
+    _verify_token(authorization)
+
+    _EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="空文件")
+
+    uploaded = []
+    errors = []
+
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(content))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="不是合法的 ZIP 文件")
+
+    for info in zf.infolist():
+        if info.is_dir():
+            continue
+        name = info.filename
+        if not name.endswith(".json"):
+            errors.append({"file": name, "error": "只支持 .json 文件"})
+            continue
+
+        # 安全：去掉路径前缀，最多保留一层子目录
+        parts = Path(name).parts
+        safe_name = parts[-1]
+        if len(parts) > 1:
+            safe_name = str(Path(parts[-2]) / parts[-1])
+
+        # 验证路径不会逃出 exports 目录
+        target = (_EXPORT_DIR / safe_name).resolve()
+        if not str(target).startswith(str(_EXPORT_DIR.resolve())):
+            errors.append({"file": name, "error": "路径不合法"})
+            continue
+
+        try:
+            raw = zf.read(info)
+            data = json.loads(raw)  # 验证 JSON 合法性
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw)
+            uploaded.append(safe_name)
+        except json.JSONDecodeError:
+            errors.append({"file": name, "error": "不是合法的 JSON"})
+        except Exception as e:
+            errors.append({"file": name, "error": str(e)})
+
+    zf.close()
 
     return {
         "status": "ok" if not errors else "partial",
