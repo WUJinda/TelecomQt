@@ -221,7 +221,7 @@
                       <td x-text="t.open_date"></td><td x-text="t.open_price"></td>
                       <td x-text="t.close_date"></td><td x-text="t.close_price"></td>
                       <td x-text="t.volume"></td>
-                      <td :class="{'warn': (t.holding_days||0) > 10}" x-text="t.holding_days"></td>
+                      <td :class="{'warn': (t.holding_days||0) > 20}" x-text="t.holding_days"></td>
                       <td x-text="fmtMoney(t.margin)"></td><td x-text="t.points"></td>
                       <td :class="pnlClass(t.net_pnl)" x-text="fmtMoney(t.net_pnl)"></td>
                       <td :class="pnlClass(t.return_rate)" x-text="(t.return_rate??0)+'%'"></td>
@@ -249,7 +249,7 @@
                       <td x-text="it.trade.open_date"></td><td x-text="it.trade.open_price"></td>
                       <td x-text="it.trade.close_date"></td><td x-text="it.trade.close_price"></td>
                       <td x-text="it.trade.volume"></td>
-                      <td :class="{'warn': (it.trade.holding_days||0) > 10}" x-text="it.trade.holding_days"></td>
+                      <td :class="{'warn': (it.trade.holding_days||0) > 20}" x-text="it.trade.holding_days"></td>
                       <td x-text="fmtMoney(it.trade.margin)"></td><td x-text="it.trade.points"></td>
                       <td :class="pnlClass(it.trade.net_pnl)" x-text="fmtMoney(it.trade.net_pnl)"></td>
                       <td :class="pnlClass(it.trade.return_rate)" x-text="(it.trade.return_rate??0)+'%'"></td>
@@ -1050,14 +1050,14 @@
       },
       isAnomaly(t) {
         if (!t) return false;
-        if ((t.holding_days || 0) > 10) return true;
+        if ((t.holding_days || 0) > 20) return true;
         if ((t.return_rate || 0) <= -50) return true;
         return false;
       },
       anomalyText(t) {
         if (!t) return '';
         const reasons = [];
-        if ((t.holding_days || 0) > 10) reasons.push('持仓' + t.holding_days + '天');
+        if ((t.holding_days || 0) > 20) reasons.push('持仓' + t.holding_days + '天');
         if ((t.return_rate || 0) <= -100) reasons.push('保证金亏光');
         else if ((t.return_rate || 0) <= -50) reasons.push('亏损' + Math.abs(t.return_rate || 0).toFixed(1) + '%');
         return '异常：' + reasons.join('，');
