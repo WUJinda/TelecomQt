@@ -194,7 +194,7 @@
               </select>
               <select x-model.number="selectedInst" x-show="tradeFilter==='all'">
                 <template x-for="it in instsTraded()" :key="it.inst.instrument">
-                  <option :value="it.i" x-text="it.inst.instrument + '（' + (it.inst.trade_count||0) + '笔）'"></option>
+                  <option :value="it.i" x-text="instIcon(it.inst.instrument) + it.inst.instrument + '（' + (it.inst.trade_count||0) + '笔）'"></option>
                 </template>
               </select>
               <span class="muted" style="font-size:12px" x-show="tradeFilter==='all' && curInst()">交易所 <span x-text="curInst()?.exchange"></span> · 周期 <span x-text="curInst()?.kline_style"></span> · 乘数 <span x-text="curInst()?.volume_multiple"></span></span>
@@ -245,7 +245,7 @@
                         <span x-text="i+1"></span>
                         <span class="anomaly-badge" x-show="isAnomaly(it.trade)" :title="anomalyText(it.trade)">⚠</span>
                       </td>
-                      <td class="l" x-text="it.inst.instrument"></td>
+                      <td class="l" x-text="instIcon(it.inst.instrument) + it.inst.instrument"></td>
                       <td x-text="it.trade.open_date"></td><td x-text="it.trade.open_price"></td>
                       <td x-text="it.trade.close_date"></td><td x-text="it.trade.close_price"></td>
                       <td x-text="it.trade.volume"></td>
@@ -1038,6 +1038,12 @@
       },
 
       // ---- 交易筛选 ----
+      instIcon(instrument) {
+        const sym = (instrument || '').toUpperCase().replace(/0$/, '');
+        if (sym === 'AU') return '\u{1F947} ';  // \u{1F947} = gold medal
+        if (sym === 'AG') return '\u{1F948} ';  // \u{1F948} = silver medal
+        return '';
+      },
       filteredTrades() {
         const all = this.allTrades();
         if (this.tradeFilter === 'all') return all;
@@ -1145,7 +1151,7 @@
             const od = (t.open_date || '').slice(5), cd = (t.close_date || '').slice(5);
             out.push({
               instIdx: ii, tradeIdx: ti, inst, trade: t,
-              label: `${inst.instrument} · #${t.no || (ti + 1)} · ${od}→${cd} · ${this.fmtMoney(t.net_pnl)}`,
+              label: `${this.instIcon(inst.instrument)}${inst.instrument} · #${t.no || (ti + 1)} · ${od}→${cd} · ${this.fmtMoney(t.net_pnl)}`,
             });
           }
         }
@@ -1167,7 +1173,7 @@
         const at = this.filteredTrades();
         const it = at[this.selectedTrade];
         if (!it) return '';
-        return `${it.inst.instrument} · ${it.inst.kline_style} · ${this.dirLabel(this.current.direction)}`;
+        return `${this.instIcon(it.inst.instrument)}${it.inst.instrument} · ${it.inst.kline_style} · ${this.dirLabel(this.current.direction)}`;
       },
 
       renderKline() {
