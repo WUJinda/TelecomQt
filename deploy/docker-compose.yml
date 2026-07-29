@@ -16,6 +16,7 @@ services:
     restart: always
     environment:
       - EXPERIMENTS_DIR=/data/experiments
+      - ANALYTICS_DIR=/data/analytics
       - MARKET_DATA_DIR=/app/market-data
       - DEPLOY_TOKEN=${DEPLOY_TOKEN:-}
     healthcheck:

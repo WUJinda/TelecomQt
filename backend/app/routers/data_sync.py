@@ -38,6 +38,12 @@ _EXPERIMENTS_DIR = Path(os.environ.get(
     Path(__file__).resolve().parents[2] / "data" / "experiments",
 ))
 
+# 统计分析报告目录
+_ANALYTICS_DIR = Path(os.environ.get(
+    "ANALYTICS_DIR",
+    Path(__file__).resolve().parents[2] / "data" / "analytics",
+))
+
 # 安全：部署令牌（环境变量传入，未设置则拒绝写入）
 _DEPLOY_TOKEN = os.environ.get("DEPLOY_TOKEN", "")
 
@@ -327,5 +333,52 @@ def delete_experiment(
     return {
         "status": "deleted",
         "experiment_id": safe_id,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
+@router.post("/data/sync-analytics")
+async def sync_analytics(
+    file: UploadFile = File(...),
+    report_id: str | None = Form(None),
+    authorization: str | None = Header(None),
+):
+    """上传统计分析报告 JSON 到 analytics 目录。
+
+    用法：
+        curl -X POST https://panel.darewin.icu/api/data/sync-analytics \\
+          -H "Authorization: Bearer YOUR_TOKEN" \\
+          -F "file=@report.json" \\
+          -F "report_id=20260729_peak_ratio_analysis"
+    """
+    _verify_token(authorization)
+
+    name = file.filename or ""
+    if not name.endswith(".json"):
+        raise HTTPException(status_code=400, detail="只支持 .json 文件")
+
+    # 确定 report_id（文件名）
+    rid = report_id or Path(name).stem
+    safe_id = Path(rid).name  # 防止路径穿越
+
+    _ANALYTICS_DIR.mkdir(parents=True, exist_ok=True)
+    target_file = _ANALYTICS_DIR / f"{safe_id}.json"
+
+    content = await file.read()
+
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="不是合法的 JSON 文件")
+
+    with open(target_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    file_size = target_file.stat().st_size
+    return {
+        "status": "ok",
+        "report_id": safe_id,
+        "path": str(target_file),
+        "file_size": file_size,
         "timestamp": datetime.now().isoformat(),
     }
