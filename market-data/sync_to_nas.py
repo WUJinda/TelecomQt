@@ -81,11 +81,16 @@ def _upload_zip(url: str, headers: dict, files: list[Path],
     Returns:
         (成功数, 失败数, 压缩信息描述)
     """
+    # 确定打包基准目录：ZIP 内路径相对于 target_dir
+    if target_dir == "exports":
+        pack_base = EXPORT_DIR
+    else:  # store
+        pack_base = _MARKET_DATA_DIR / "store"
+
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for f in files:
-            # 保留相对目录结构
-            arcname = f.relative_to(_MARKET_DATA_DIR)
+            arcname = f.relative_to(pack_base)
             zf.write(f, str(arcname))
 
     raw_size = sum(f.stat().st_size for f in files)
