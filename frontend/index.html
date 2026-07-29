@@ -82,6 +82,13 @@
     .btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
     .ref-link{color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent);cursor:pointer}
     .ref-link:hover{opacity:0.8}
+    /* 交易筛选器 */
+    select.opt-pos{border-color:var(--pos);color:var(--pos)}
+    select.opt-neg{border-color:var(--neg);color:var(--neg)}
+    select.opt-anomaly{border-color:#e8a33d;color:#e8a33d}
+    .anomaly-badge{display:inline-block;background:#3a2a0e;border:1px solid #e8a33d;color:#e8a33d;
+      padding:0 5px;border-radius:8px;font-size:11px;margin-left:4px;cursor:help;white-space:nowrap}
+    td.warn{color:#e8a33d;font-weight:600}
   </style>
 </head>
 <body>
@@ -179,15 +186,23 @@
           <div class="wrap">
             <div class="hd">
               <b>逐笔交易明细</b>
-              <select x-model.number="selectedInst">
+              <select x-model="tradeFilter" :class="{'opt-pos': tradeFilter==='profit', 'opt-neg': tradeFilter==='loss', 'opt-anomaly': tradeFilter==='anomaly'}">
+                <option value="all">全部交易</option>
+                <option value="profit">🔴 盈利交易</option>
+                <option value="loss">🟢 亏损交易</option>
+                <option value="anomaly">⚠️ 异常交易</option>
+              </select>
+              <select x-model.number="selectedInst" x-show="tradeFilter==='all'">
                 <template x-for="it in instsTraded()" :key="it.inst.instrument">
                   <option :value="it.i" x-text="it.inst.instrument + '（' + (it.inst.trade_count||0) + '笔）'"></option>
                 </template>
               </select>
-              <span class="muted" style="font-size:12px" x-show="curInst()">交易所 <span x-text="curInst()?.exchange"></span> · 周期 <span x-text="curInst()?.kline_style"></span> · 乘数 <span x-text="curInst()?.volume_multiple"></span></span>
+              <span class="muted" style="font-size:12px" x-show="tradeFilter==='all' && curInst()">交易所 <span x-text="curInst()?.exchange"></span> · 周期 <span x-text="curInst()?.kline_style"></span> · 乘数 <span x-text="curInst()?.volume_multiple"></span></span>
+              <span class="muted" style="font-size:12px" x-show="tradeFilter!=='all'">共筛选出 <b style="color:var(--text)" x-text="filteredTrades().length"></b> 笔交易</span>
             </div>
             <div style="overflow-x:auto">
-              <table>
+              <!-- 全部模式：按品种查看 -->
+              <table x-show="tradeFilter==='all'">
                 <thead>
                   <tr>
                     <th class="l">#</th><th class="l">方向</th>
@@ -198,11 +213,15 @@
                 <tbody>
                   <template x-for="(t,i) in (curInst()?.trades||[])" :key="i">
                     <tr>
-                      <td class="l" x-text="t.no||i+1"></td>
+                      <td class="l">
+                        <span x-text="t.no||i+1"></span>
+                        <span class="anomaly-badge" x-show="isAnomaly(t)" :title="anomalyText(t)">⚠</span>
+                      </td>
                       <td class="l" x-text="dirLabel(current.direction)"></td>
                       <td x-text="t.open_date"></td><td x-text="t.open_price"></td>
                       <td x-text="t.close_date"></td><td x-text="t.close_price"></td>
-                      <td x-text="t.volume"></td><td x-text="t.holding_days"></td>
+                      <td x-text="t.volume"></td>
+                      <td :class="{'warn': (t.holding_days||0) > 10}" x-text="t.holding_days"></td>
                       <td x-text="fmtMoney(t.margin)"></td><td x-text="t.points"></td>
                       <td :class="pnlClass(t.net_pnl)" x-text="fmtMoney(t.net_pnl)"></td>
                       <td :class="pnlClass(t.return_rate)" x-text="(t.return_rate??0)+'%'"></td>
@@ -210,7 +229,36 @@
                   </template>
                 </tbody>
               </table>
-              <div x-show="!(curInst()?.trades||[]).length" class="empty">该品种本轮无交易。</div>
+              <!-- 筛选模式：全品种扇平列表 -->
+              <table x-show="tradeFilter!=='all'">
+                <thead>
+                  <tr>
+                    <th class="l">#</th><th class="l">品种</th>
+                    <th>开仓日期</th><th>开仓价</th><th>平仓日期</th><th>平仓价</th>
+                    <th>手数</th><th>持仓天</th><th>保证金</th><th>点数</th><th>净盈亏</th><th>收益率</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(it,i) in filteredTrades()" :key="i">
+                    <tr>
+                      <td class="l">
+                        <span x-text="i+1"></span>
+                        <span class="anomaly-badge" x-show="isAnomaly(it.trade)" :title="anomalyText(it.trade)">⚠</span>
+                      </td>
+                      <td class="l" x-text="it.inst.instrument"></td>
+                      <td x-text="it.trade.open_date"></td><td x-text="it.trade.open_price"></td>
+                      <td x-text="it.trade.close_date"></td><td x-text="it.trade.close_price"></td>
+                      <td x-text="it.trade.volume"></td>
+                      <td :class="{'warn': (it.trade.holding_days||0) > 10}" x-text="it.trade.holding_days"></td>
+                      <td x-text="fmtMoney(it.trade.margin)"></td><td x-text="it.trade.points"></td>
+                      <td :class="pnlClass(it.trade.net_pnl)" x-text="fmtMoney(it.trade.net_pnl)"></td>
+                      <td :class="pnlClass(it.trade.return_rate)" x-text="(it.trade.return_rate??0)+'%'"></td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+              <div x-show="tradeFilter==='all' && !(curInst()?.trades||[]).length" class="empty">该品种本轮无交易。</div>
+              <div x-show="tradeFilter!=='all' && filteredTrades().length===0" class="empty">没有符合条件的交易。</div>
             </div>
           </div>
 
@@ -227,12 +275,18 @@
             <div class="wrap">
               <div class="hd">
                 <b>交易选择器</b>
+                <select x-model="tradeFilter" :class="{'opt-pos': tradeFilter==='profit', 'opt-neg': tradeFilter==='loss', 'opt-anomaly': tradeFilter==='anomaly'}" @change="selectedTrade=0; $nextTick(()=>renderKline())">
+                  <option value="all">全部交易</option>
+                  <option value="profit">🔴 盈利交易</option>
+                  <option value="loss">🟢 亏损交易</option>
+                  <option value="anomaly">⚠️ 异常交易</option>
+                </select>
                 <select x-model.number="selectedTrade" @change="$nextTick(()=>renderKline())">
-                  <template x-for="(it,i) in allTrades()" :key="i">
-                    <option :value="i" x-text="it.label"></option>
+                  <template x-for="(it,i) in filteredTrades()" :key="i">
+                    <option :value="i" x-text="it.label + (isAnomaly(it.trade) ? ' ⚠' : '')"></option>
                   </template>
                 </select>
-                <span class="muted" style="font-size:12px" x-show="allTrades().length">共 <span x-text="allTrades().length"></span> 笔交易</span>
+                <span class="muted" style="font-size:12px" x-show="filteredTrades().length">共 <span x-text="filteredTrades().length"></span> 笔交易</span>
               </div>
             </div>
 
@@ -709,6 +763,7 @@
       loadingDetail: false,
       selectedInst: 0,
       selectedTrade: 0,
+      tradeFilter: 'all',       // 'all' | 'profit' | 'loss' | 'anomaly'
       error: '',
       _chart: null,
       _kchart: null,
@@ -775,6 +830,8 @@
         this.current = null;
         this._atKey = null;
         this._atCache = null;
+        this.tradeFilter = 'all';
+        this.selectedTrade = 0;
         this.error = '';
       },
       // ===== Tab 切换（切到想法/计划时懒加载） =====
@@ -979,6 +1036,32 @@
           .filter(o => (o.inst.trade_count || 0) > 0);
       },
 
+      // ---- 交易筛选 ----
+      filteredTrades() {
+        const all = this.allTrades();
+        if (this.tradeFilter === 'all') return all;
+        return all.filter(it => {
+          if (this.tradeFilter === 'profit') return (it.trade.net_pnl || 0) > 0;
+          if (this.tradeFilter === 'loss') return (it.trade.net_pnl || 0) < 0;
+          if (this.tradeFilter === 'anomaly') return this.isAnomaly(it.trade);
+          return true;
+        });
+      },
+      isAnomaly(t) {
+        if (!t) return false;
+        if ((t.holding_days || 0) > 10) return true;
+        if ((t.return_rate || 0) <= -50) return true;
+        return false;
+      },
+      anomalyText(t) {
+        if (!t) return '';
+        const reasons = [];
+        if ((t.holding_days || 0) > 10) reasons.push('持仓' + t.holding_days + '天');
+        if ((t.return_rate || 0) <= -100) reasons.push('保证金亏光');
+        else if ((t.return_rate || 0) <= -50) reasons.push('亏损' + Math.abs(t.return_rate || 0).toFixed(1) + '%');
+        return '异常：' + reasons.join('，');
+      },
+
       renderChart() {
         // Alpine 3 的 x-ref 在 <template x-if> 动态插入的 DOM 上有绑定延迟/不注册问题：
         // open() 后 this.$refs.chart 可能长期为 undefined（即使 #chart 已在 DOM 里且可见），
@@ -1066,17 +1149,17 @@
         return out;
       },
       curTrade() {
-        const at = this.allTrades();
+        const at = this.filteredTrades();
         const it = at[this.selectedTrade];
         return (it && it.trade) || null;
       },
       curChart() {
-        const at = this.allTrades();
+        const at = this.filteredTrades();
         const it = at[this.selectedTrade];
         return (it && it.trade && it.trade.chart) || null;
       },
       replayTitle() {
-        const at = this.allTrades();
+        const at = this.filteredTrades();
         const it = at[this.selectedTrade];
         if (!it) return '';
         return `${it.inst.instrument} · ${it.inst.kline_style} · ${this.dirLabel(this.current.direction)}`;
@@ -1093,7 +1176,7 @@
         }
         this._kchartRetry = 0;
         if (!el) return;
-        const at = this.allTrades();
+        const at = this.filteredTrades();
         if (!at.length) return;
         const item = at[this.selectedTrade];
         const chart = item && item.trade && item.trade.chart;
