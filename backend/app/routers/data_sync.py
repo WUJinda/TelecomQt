@@ -136,24 +136,37 @@ async def sync_market_data(
 @router.post("/data/sync-zip")
 async def sync_market_data_zip(
     file: UploadFile = File(...),
+    target_dir: str = "exports",
     authorization: str | None = Header(None),
 ):
-    """上传一个 ZIP 文件，批量解压写入 exports/ 目录。
+    """上传一个 ZIP 文件，批量解压写入指定目录。
 
-    适用于网络带宽有限的场景：客户端先将所有 JSON 压缩成 ZIP
-    （8.9MB JSON ≈ 1MB ZIP），单次请求传完。
+    适用于网络带宽有限的场景：客户端先将所有文件压缩成 ZIP，
+    单次请求传完。
 
     用法（curl 示例）：
-        # 客户端打包
-        cd market-data/exports && zip -r /tmp/d1.zip D1/
-        # 上传
+        # 推送行情导出 JSON
         curl -X POST https://panel.darewin.icu/api/data/sync-zip \\
           -H "Authorization: Bearer YOUR_TOKEN" \\
-          -F "file=@/tmp/d1.zip"
+          -F "file=@exports.zip"
+
+        # 推送品种合约 parquet
+        curl -X POST https://panel.darewin.icu/api/data/sync-zip \\
+          -H "Authorization: Bearer YOUR_TOKEN" \\
+          -F "file=@store.zip" -F "target_dir=store"
     """
     _verify_token(authorization)
 
-    _EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    # 安全：只允许写入 market-data 下的 exports 或 store 目录
+    allowed_dirs = {
+        "exports": _EXPORT_DIR,
+        "store": _MARKET_DATA_DIR / "store",
+    }
+    base_dir = allowed_dirs.get(target_dir)
+    if base_dir is None:
+        raise HTTPException(status_code=400, detail=f"target_dir 只支持: {list(allowed_dirs.keys())}")
+
+    base_dir.mkdir(parents=True, exist_ok=True)
 
     content = await file.read()
     if not content:
@@ -171,28 +184,21 @@ async def sync_market_data_zip(
         if info.is_dir():
             continue
         name = info.filename
-        if not name.endswith(".json"):
-            errors.append({"file": name, "error": "只支持 .json 文件"})
-            continue
 
-        # 安全：去掉路径前缀，最多保留一层子目录
-        parts = Path(name).parts
-        safe_name = parts[-1]
-        if len(parts) > 1:
-            safe_name = str(Path(parts[-2]) / parts[-1])
-
-        # 验证路径不会逃出 exports 目录
-        target = (_EXPORT_DIR / safe_name).resolve()
-        if not str(target).startswith(str(_EXPORT_DIR.resolve())):
+        # 安全：验证路径不会逃出目标目录
+        target = (base_dir / name).resolve()
+        if not str(target).startswith(str(base_dir.resolve())):
             errors.append({"file": name, "error": "路径不合法"})
             continue
 
         try:
             raw = zf.read(info)
-            data = json.loads(raw)  # 验证 JSON 合法性
+            # exports 目录下的文件验证 JSON；store 目录允许 parquet
+            if target_dir == "exports" and name.endswith(".json"):
+                json.loads(raw)  # 验证 JSON 合法性
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(raw)
-            uploaded.append(safe_name)
+            uploaded.append(name)
         except json.JSONDecodeError:
             errors.append({"file": name, "error": "不是合法的 JSON"})
         except Exception as e:
@@ -204,7 +210,8 @@ async def sync_market_data_zip(
         "status": "ok" if not errors else "partial",
         "uploaded": uploaded,
         "errors": errors,
-        "export_dir": str(_EXPORT_DIR),
+        "target_dir": str(base_dir),
+        "file_count": len(uploaded),
         "timestamp": datetime.now().isoformat(),
     }
 

@@ -9,6 +9,8 @@ services:
       - ../backend/data:/data
       # 行情数据：更新 market-data/exports 后同步进容器（覆盖镜像内的版本）
       - ../market-data/exports:/app/market-data/exports
+      # 品种合约目录：symbols API 扫描 store/daily/symbol=*/year=*/ 下的 parquet
+      - ../market-data/store:/app/market-data/store
     ports:
       - "8000:8000"
     restart: always
