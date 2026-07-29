@@ -185,7 +185,9 @@ def sync_store(host: str, token: str) -> None:
 
 
 def sync_experiment(host: str, token: str, exp_file: str) -> None:
-    """推送单个 experiment.json 到 NAS。"""
+    """推送单个 experiment.json 到 NAS（自动 ZIP 压缩）。"""
+    import io
+    import zipfile
     fpath = Path(exp_file)
     if not fpath.exists():
         print(f"错误: 文件不存在 {fpath}")
@@ -195,21 +197,31 @@ def sync_experiment(host: str, token: str, exp_file: str) -> None:
     url = f"{host.rstrip('/')}/api/data/sync-experiment"
     headers = {"Authorization": f"Bearer {token}"}
 
-    print(f"推送实验数据: {fpath.name} (id={exp_id})")
+    raw_size = fpath.stat().st_size
 
-    with open(fpath, "rb") as f:
-        resp = _session.post(
-            url,
-            headers=headers,
-            files={"file": (fpath.name, f)},
-            data={"experiment_id": exp_id},
-            timeout=120,
-        )
+    # ZIP 压缩
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(fpath, "experiment.json")
+    zip_size = buf.tell()
+    buf.seek(0)
+
+    print(f"推送实验数据: {fpath.name} (id={exp_id})")
+    print(f"  原始: {raw_size//1024}KB -> ZIP: {zip_size//1024}KB")
+
+    resp = _session.post(
+        url,
+        headers=headers,
+        files={"file": ("experiment.zip", buf, "application/zip")},
+        data={"experiment_id": exp_id},
+        timeout=300,
+    )
 
     if resp.status_code == 200:
         data = resp.json()
         print(f"[OK] experiment_id: {data['experiment_id']}")
         print(f"     写入路径: {data['path']}")
+        print(f"     文件大小: {data.get('file_size', 0) // 1024}KB")
     else:
         print(f"[FAIL] HTTP {resp.status_code}")
         print(f"       {resp.text[:500]}")

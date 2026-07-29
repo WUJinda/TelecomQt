@@ -219,24 +219,24 @@ async def sync_market_data_zip(
 @router.post("/data/sync-experiment")
 async def sync_experiment(
     file: UploadFile = File(...),
-    experiment_id: str | None = None,
+    experiment_id: str | None = Form(None),
     authorization: str | None = Header(None),
 ):
-    """上传单个 experiment.json 文件到实验数据目录。
+    """上传单个 experiment.json（或 ZIP 压缩版）到实验数据目录。
+
+    支持两种格式：
+    - .json: 原始 JSON 文件
+    - .zip: 包含 experiment.json 的压缩包（6.6MB → 700KB，推荐带宽受限时使用）
 
     用法：
         curl -X POST https://panel.darewin.icu/api/data/sync-experiment \\
           -H "Authorization: Bearer YOUR_TOKEN" \\
-          -F "file=@20260712_210518_test.json" \\
+          -F "file=@experiment.json" \\
           -F "experiment_id=20260712_210518_test"
-
-    如果不传 experiment_id，则使用文件名（去掉 .json 后缀）作为目录名。
     """
     _verify_token(authorization)
 
     name = file.filename or ""
-    if not name.endswith(".json"):
-        raise HTTPException(status_code=400, detail="只支持 .json 文件")
 
     # 确定 experiment_id（目录名）
     exp_id = experiment_id or Path(name).stem
@@ -248,6 +248,25 @@ async def sync_experiment(
 
     content = await file.read()
 
+    # 支持 ZIP 压缩上传
+    if name.endswith(".zip"):
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(content))
+            # 找 ZIP 内的 experiment.json
+            json_name = None
+            for info in zf.infolist():
+                if info.filename.endswith(".json") and not info.is_dir():
+                    json_name = info.filename
+                    break
+            if not json_name:
+                raise HTTPException(status_code=400, detail="ZIP 中未找到 .json 文件")
+            content = zf.read(json_name)
+            zf.close()
+        except zipfile.BadZipFile:
+            raise HTTPException(status_code=400, detail="不是合法的 ZIP 文件")
+    elif not name.endswith(".json"):
+        raise HTTPException(status_code=400, detail="只支持 .json 或 .zip 文件")
+
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
@@ -256,10 +275,12 @@ async def sync_experiment(
     with open(target_file, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+    file_size = target_file.stat().st_size
     return {
         "status": "ok",
         "experiment_id": safe_id,
         "path": str(target_file),
+        "file_size": file_size,
         "timestamp": datetime.now().isoformat(),
     }
 
