@@ -23,7 +23,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Header, HTTPException, UploadFile, File
+from fastapi import APIRouter, Header, HTTPException, UploadFile, File, Form
 
 # market-data exports 目录（与 symbols.py 同口径）
 _MARKET_DATA_DIR = Path(os.environ.get(
@@ -136,7 +136,7 @@ async def sync_market_data(
 @router.post("/data/sync-zip")
 async def sync_market_data_zip(
     file: UploadFile = File(...),
-    target_dir: str = "exports",
+    target_dir: str = Form("exports"),
     authorization: str | None = Header(None),
 ):
     """上传一个 ZIP 文件，批量解压写入指定目录。
