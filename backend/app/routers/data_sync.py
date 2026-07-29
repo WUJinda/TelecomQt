@@ -304,3 +304,28 @@ def data_status(authorization: str | None = Header(None)):
 
     total = sum(len(v) for v in result.values())
     return {"exports": result, "total": total}
+
+
+@router.delete("/data/experiment/{experiment_id}")
+def delete_experiment(
+    experiment_id: str,
+    authorization: str | None = Header(None),
+):
+    """删除指定的实验目录。"""
+    _verify_token(authorization)
+
+    safe_id = Path(experiment_id).name  # 防止路径穿越
+    target_dir = _EXPERIMENTS_DIR / safe_id
+
+    if not target_dir.exists():
+        raise HTTPException(status_code=404, detail=f"实验 {safe_id} 不存在")
+
+    # 删除整个实验目录
+    import shutil
+    shutil.rmtree(target_dir)
+
+    return {
+        "status": "deleted",
+        "experiment_id": safe_id,
+        "timestamp": datetime.now().isoformat(),
+    }
