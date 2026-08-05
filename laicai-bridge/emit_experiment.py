@@ -95,7 +95,10 @@ def _summarize(instruments):
         "total_trades": n,
         "total_pnl": total_pnl,
         "total_margin": total_margin,
-        "total_return_rate": round(total_pnl / total_margin * 100, 2) if total_margin else 0.0,
+        "total_return_rate": round(
+            sum(t.get("points", 0) for t in all_trades) /
+            sum(t.get("open_price", 0) for t in all_trades) * 100
+            if all_trades else 0.0, 2),
         "win_rate": round(wins / n * 100, 1) if n else 0.0,
         "max_drawdown": drawdown,
         "avg_holding_days": round(sum(hold_days) / n, 1) if n else 0.0,
