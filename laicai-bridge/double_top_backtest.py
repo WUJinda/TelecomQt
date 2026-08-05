@@ -37,7 +37,9 @@ import pandas as pd
 DEFAULT_PARAMS = {
     "bb_period": 20,
     "bb_std": 2.0,
-    "bandwidth_min": 0.15,        # 布林带带宽最低要求（扩张期阈值）
+    "bandwidth_min": 0.14,        # 布林带带宽最低要求（扩张期阈值）
+    "tilt_threshold": 0.008,      # 布林带平行度阈值 total_tilt < 此值时判定为水平
+    "slope_window": 5,            # 斜率计算窗口（天）
     "left_peak_lookback": 30,     # 左峰最大回溯周期（安全阀，防止过老的峰）
     "zone_lower": 0.99,           # 左峰区域下界 = H_left * zone_lower
     "zone_upper": 1.02,           # 左峰区域上界 = H_left * zone_upper
@@ -131,6 +133,8 @@ def run_single_backtest(df, params):
     volume_multiple = params["volume_multiple"]
     margin_rate = params.get("margin_rate", 0.13)
     bandwidth_min = params["bandwidth_min"]
+    tilt_threshold = params.get("tilt_threshold", 0.008)
+    slope_window = params.get("slope_window", 5)
     left_peak_lookback = params["left_peak_lookback"]
     zone_lower = params["zone_lower"]
     zone_upper = params["zone_upper"]
@@ -145,7 +149,8 @@ def run_single_backtest(df, params):
     # 双峰做空三阶段状态机：
     #   bw_qualified → mid_touched → 入场 → 平仓 → 回到初始
     #
-    #   1) 带宽达标(bw >= bandwidth_min)：标记有资格交易
+    #   1) 联合门控(bw >= bandwidth_min AND total_tilt < tilt_threshold)：标记有资格交易
+    #      total_tilt = (|上轨斜率| + |下轨斜率|) / 中轨，衡量布林带水平程度
     #   2) 价格回落接触中轨(close <= middle)：触发扫描，往左找 H_left
     #   3) 价格反弹到 H_left zone：做空入场（第二峰 ≈ 左峰 = 双顶）
     #   4) 价格跌回中轨：平仓止盈
@@ -162,8 +167,18 @@ def run_single_backtest(df, params):
         if np.isnan(bw):
             continue
 
-        # ---- 阶段1：带宽门控 ----
-        if bw >= bandwidth_min:
+        # ---- 阶段1：联合门控（带宽 + 平行度）----
+        # total_tilt = (|上轨斜率| + |下轨斜率|) / 中轨
+        # 只有带宽达标且布林带水平（不倾斜）时才进入双峰扫描
+        if i >= slope_window + bb_period:
+            up_slope = (upper[i] - upper[i - slope_window]) / slope_window
+            lo_slope = (lower[i] - lower[i - slope_window]) / slope_window
+            mid_val = middle[i]
+            total_tilt = (abs(up_slope) + abs(lo_slope)) / mid_val if mid_val > 0 else 999
+        else:
+            total_tilt = 999
+
+        if bw >= bandwidth_min and total_tilt < tilt_threshold:
             bw_qualified = True
 
         # ---- 阶段2：价格接触中轨 → 触发扫描，锁定 H_left ----

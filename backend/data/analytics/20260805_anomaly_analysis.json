@@ -1,0 +1,2054 @@
+{
+  "report_id": "20260805_anomaly_analysis",
+  "title": "异常交易深度分析",
+  "strategy_type": "double_top_short",
+  "created_at": "2026-08-05T16:24:59",
+  "description": "基于 20260805_160735_double_top_short_peak_expiry 回测结果，对 177 笔交易进行异常筛选与深度分析。异常定义：持仓天数>20、收益率≤-50%、或收益率≤-100%。共发现 84 笔异常交易（占 47.5%），这些异常交易合计贡献了 -3631 万亏损。核心问题：策略无止损机制，仅靠中轨止盈，当价格持续上涨不回中轨时仓位会无限期持有并持续亏损。",
+  "summary": [
+    {
+      "label": "总交易数",
+      "value": "177"
+    },
+    {
+      "label": "异常交易数",
+      "value": "84"
+    },
+    {
+      "label": "异常占比",
+      "value": "47.5%"
+    },
+    {
+      "label": "异常交易总盈亏",
+      "value": "-3630.5 万"
+    },
+    {
+      "label": "异常交易平均持仓",
+      "value": "35.3 天"
+    },
+    {
+      "label": "异常交易平均收益率",
+      "value": "-5.4%"
+    },
+    {
+      "label": "涉及品种数",
+      "value": "24"
+    },
+    {
+      "label": "总回测亏损",
+      "value": "-1441 万"
+    },
+    {
+      "label": "无止损+长持仓亏损贡献",
+      "value": "-3907 万（66 笔）"
+    },
+    {
+      "label": "持仓天数 vs 收益率相关系数",
+      "value": "-0.689"
+    }
+  ],
+  "sections": [
+    {
+      "title": "一、异常类型分类统计",
+      "content": "按三种异常定义统计。注意一笔交易可能同时满足多个异常条件。最突出的发现是「长持仓(>20天)」类异常高达 84 笔，说明策略的中轨止盈条件在很多情况下迟迟无法触发，导致大量仓位长期挂持。「重度亏损(≤-50%)」和「极端亏损(≤-100%)」直接反映了无止损机制的代价。",
+      "tables": [
+        {
+          "caption": "异常类型统计",
+          "headers": [
+            "异常类型",
+            "交易数",
+            "占比",
+            "合计盈亏(万)",
+            "平均盈亏(万)"
+          ],
+          "rows": [
+            [
+              "长持仓(>20天)",
+              "84",
+              "47.5%",
+              "-3630.5",
+              "-43.2"
+            ],
+            [
+              "极端亏损(≤-100%)",
+              "0",
+              "0.0%",
+              "0.0",
+              "0"
+            ],
+            [
+              "重度亏损(≤-50%)",
+              "1",
+              "0.6%",
+              "-583.4",
+              "-583.4"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "title": "二、按品种汇总",
+      "content": "异常交易涉及 24 个品种。下表列出所有有异常交易的品种，按异常笔数降序。异常集中度最高的品种往往具有趋势性强、波动率大的特征，做空后遭遇单边上涨趋势时无法止损，导致长期持有并持续亏损。",
+      "tables": [
+        {
+          "caption": "品种异常分布",
+          "headers": [
+            "品种",
+            "总交易数",
+            "异常数",
+            "异常率",
+            "异常交易合计盈亏(万)"
+          ],
+          "rows": [
+            [
+              "AG0",
+              "9",
+              "7",
+              "78%",
+              "-905.6"
+            ],
+            [
+              "MA0",
+              "13",
+              "6",
+              "46%",
+              "-212.8"
+            ],
+            [
+              "RM0",
+              "9",
+              "6",
+              "67%",
+              "-564.6"
+            ],
+            [
+              "FG0",
+              "6",
+              "5",
+              "83%",
+              "-231.0"
+            ],
+            [
+              "I0",
+              "10",
+              "5",
+              "50%",
+              "-168.5"
+            ],
+            [
+              "SA0",
+              "9",
+              "5",
+              "56%",
+              "-142.8"
+            ],
+            [
+              "SN0",
+              "9",
+              "5",
+              "56%",
+              "-297.1"
+            ],
+            [
+              "M0",
+              "6",
+              "4",
+              "67%",
+              "32.1"
+            ],
+            [
+              "P0",
+              "9",
+              "4",
+              "44%",
+              "-71.7"
+            ],
+            [
+              "RB0",
+              "5",
+              "4",
+              "80%",
+              "-65.5"
+            ],
+            [
+              "RU0",
+              "9",
+              "4",
+              "44%",
+              "-145.5"
+            ],
+            [
+              "TA0",
+              "11",
+              "4",
+              "36%",
+              "-189.7"
+            ],
+            [
+              "A0",
+              "3",
+              "3",
+              "100%",
+              "-17.4"
+            ],
+            [
+              "BU0",
+              "10",
+              "3",
+              "30%",
+              "-13.4"
+            ],
+            [
+              "CF0",
+              "6",
+              "3",
+              "50%",
+              "-205.1"
+            ],
+            [
+              "HC0",
+              "5",
+              "3",
+              "60%",
+              "-74.7"
+            ],
+            [
+              "NI0",
+              "10",
+              "3",
+              "30%",
+              "-53.3"
+            ],
+            [
+              "AU0",
+              "5",
+              "2",
+              "40%",
+              "-16.0"
+            ],
+            [
+              "Y0",
+              "7",
+              "2",
+              "29%",
+              "-30.8"
+            ],
+            [
+              "ZN0",
+              "6",
+              "2",
+              "33%",
+              "-150.2"
+            ],
+            [
+              "AL0",
+              "5",
+              "1",
+              "20%",
+              "-34.8"
+            ],
+            [
+              "CS0",
+              "2",
+              "1",
+              "50%",
+              "-30.5"
+            ],
+            [
+              "CU0",
+              "6",
+              "1",
+              "17%",
+              "-45.5"
+            ],
+            [
+              "SR0",
+              "3",
+              "1",
+              "33%",
+              "4.0"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "title": "三、按年份汇总",
+      "content": "异常交易的时间分布可以揭示宏观市场环境对策略的影响。大宗商品牛市年份（如 2021 年）做空策略往往表现最差，因为价格持续上涨且不回中轨，仓位被长期套牢。",
+      "tables": [
+        {
+          "caption": "年份异常分布",
+          "headers": [
+            "年份",
+            "总交易数",
+            "异常数",
+            "异常率",
+            "异常交易合计盈亏(万)"
+          ],
+          "rows": [
+            [
+              "2020",
+              "27",
+              "14",
+              "52%",
+              "-673.3"
+            ],
+            [
+              "2021",
+              "38",
+              "24",
+              "63%",
+              "-884.6"
+            ],
+            [
+              "2022",
+              "27",
+              "13",
+              "48%",
+              "-695.2"
+            ],
+            [
+              "2023",
+              "27",
+              "14",
+              "52%",
+              "-443.6"
+            ],
+            [
+              "2024",
+              "23",
+              "9",
+              "39%",
+              "-180.6"
+            ],
+            [
+              "2025",
+              "27",
+              "8",
+              "30%",
+              "-685.5"
+            ],
+            [
+              "2026",
+              "8",
+              "2",
+              "25%",
+              "-67.7"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "title": "四、持仓天数 vs 收益率相关性",
+      "content": "异常交易中持仓天数与收益率的相关系数为 -0.689。呈显著负相关，即持仓时间越长，亏损越严重。这印证了无止损机制的核心缺陷：价格不回中轨时，持仓越久亏损越大。\n\n持仓天数分布显示异常交易的持仓时间跨度极大，最长持仓达到 82 天。",
+      "tables": [
+        {
+          "caption": "异常交易持仓天数分布",
+          "headers": [
+            "持仓天数区间",
+            "交易数"
+          ],
+          "rows": [
+            [
+              "1-10",
+              "0"
+            ],
+            [
+              "11-20",
+              "0"
+            ],
+            [
+              "21-30",
+              "38"
+            ],
+            [
+              "31-50",
+              "36"
+            ],
+            [
+              "51-100",
+              "10"
+            ],
+            [
+              "100+",
+              "0"
+            ]
+          ]
+        },
+        {
+          "caption": "异常交易收益率分布",
+          "headers": [
+            "收益率区间",
+            "交易数"
+          ],
+          "rows": [
+            [
+              "正收益",
+              "18"
+            ],
+            [
+              "0~-20%",
+              "62"
+            ],
+            [
+              "-20%~-50%",
+              "3"
+            ],
+            [
+              "-50%~-100%",
+              "1"
+            ],
+            [
+              "≤-100%",
+              "0"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "title": "五、典型案例深入分析",
+      "content": "以下选取净亏损最大的 5 笔异常交易进行深入分析。每笔交易的价格走势、最大逆向偏移和亏损原因一目了然。所有案例的共同特征是：做空入场后价格持续上涨，中轨止盈条件无法触发，由于策略没有止损，仓位被长期持有直到最终以巨大亏损平仓。",
+      "tables": [
+        {
+          "caption": "亏损最严重的 5 笔异常交易",
+          "headers": [
+            "品种",
+            "开仓日",
+            "平仓日",
+            "持仓(天)",
+            "开仓价",
+            "平仓价",
+            "价格涨幅(%)",
+            "最大逆向(%)",
+            "净盈亏(万)",
+            "收益率(%)",
+            "异常类型"
+          ],
+          "rows": [
+            [
+              "AG0",
+              "2025-11-13",
+              "2026-02-03",
+              "82",
+              "12610.0",
+              "21446.0",
+              "70.07",
+              "156.8",
+              "-583.4",
+              "-70.1",
+              "长持仓(>20天) + 重度亏损(≤-50%)"
+            ],
+            [
+              "RM0",
+              "2022-01-21",
+              "2022-03-25",
+              "63",
+              "3004.0",
+              "3940.0",
+              "31.16",
+              "43.48",
+              "-311.0",
+              "-31.2",
+              "长持仓(>20天)"
+            ],
+            [
+              "AG0",
+              "2020-07-09",
+              "2020-08-21",
+              "43",
+              "4536.0",
+              "6088.0",
+              "34.22",
+              "51.61",
+              "-284.2",
+              "-34.2",
+              "长持仓(>20天)"
+            ],
+            [
+              "MA0",
+              "2021-08-19",
+              "2021-10-20",
+              "62",
+              "2813.0",
+              "3475.0",
+              "23.53",
+              "50.55",
+              "-196.1",
+              "-23.5",
+              "长持仓(>20天)"
+            ],
+            [
+              "RM0",
+              "2023-06-15",
+              "2023-07-31",
+              "46",
+              "3089.0",
+              "3606.0",
+              "16.74",
+              "24.51",
+              "-167.2",
+              "-16.7",
+              "长持仓(>20天)"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "title": "六、无止损机制的核心代价",
+      "content": "策略仅设中轨止盈、不设止损，这是造成大部分异常交易的根本原因。统计显示，66 笔「亏损+持仓>20天」的交易合计亏损 -3907 万，占全部 177 笔交易总亏损 -3980 万的 98%。\n\n这些交易的开仓逻辑本身可能是合理的（布林带扩张+价格回落中轨+反弹做空），但由于入场后市场进入单边上涨趋势，价格始终不回落到中轨，策略的止盈条件永远无法满足。没有止损意味着这些仓位会无限期持有，从最初的浮亏一步步演变成巨额实亏。\n\n建议：在 H_left × 1.05 或 H_left × 1.10 处设置硬止损，可在保留中轨止盈逻辑的同时，将最大单笔亏损限制在可控范围内。参考报告 [[report:20260729_peak_ratio_analysis]] 的结论，H_left × 1.05 止损线可在不误伤盈利交易的前提下截断大部分亏损。",
+      "tables": [
+        {
+          "caption": "无止损代价统计",
+          "headers": [
+            "指标",
+            "数值"
+          ],
+          "rows": [
+            [
+              "亏损+长持仓(>20天)交易数",
+              "66"
+            ],
+            [
+              "亏损+长持仓交易合计亏损(万)",
+              "-3907.4"
+            ],
+            [
+              "全部亏损交易合计(万)",
+              "-3979.8"
+            ],
+            [
+              "长持仓亏损占总亏损比",
+              "98%"
+            ],
+            [
+              "异常交易合计亏损(万)",
+              "-3630.5"
+            ],
+            [
+              "异常亏损占总亏损比",
+              "91%"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "_all_anomalies": [
+    {
+      "instrument": "AG0",
+      "no": 9,
+      "open_date": "2025-11-13",
+      "close_date": "2026-02-03",
+      "holding_days": 82,
+      "open_price": 12610.0,
+      "close_price": 21446.0,
+      "net_pnl": -5834007.7,
+      "return_rate": -70.1,
+      "margin": 998712.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)",
+        "重度亏损(≤-50%)"
+      ],
+      "max_high_during_trade": 32382.0,
+      "max_adverse_pct": 156.8
+    },
+    {
+      "instrument": "RM0",
+      "no": 4,
+      "open_date": "2022-01-21",
+      "close_date": "2022-03-25",
+      "holding_days": 63,
+      "open_price": 3004.0,
+      "close_price": 3940.0,
+      "net_pnl": -3109825.41,
+      "return_rate": -31.2,
+      "margin": 997328.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4310.0,
+      "max_adverse_pct": 43.48
+    },
+    {
+      "instrument": "AG0",
+      "no": 1,
+      "open_date": "2020-07-09",
+      "close_date": "2020-08-21",
+      "holding_days": 43,
+      "open_price": 4536.0,
+      "close_price": 6088.0,
+      "net_pnl": -2842104.19,
+      "return_rate": -34.2,
+      "margin": 996105.6,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6877.0,
+      "max_adverse_pct": 51.61
+    },
+    {
+      "instrument": "MA0",
+      "no": 4,
+      "open_date": "2021-08-19",
+      "close_date": "2021-10-20",
+      "holding_days": 62,
+      "open_price": 2813.0,
+      "close_price": 3475.0,
+      "net_pnl": -1961381.25,
+      "return_rate": -23.5,
+      "margin": 999177.6,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4235.0,
+      "max_adverse_pct": 50.55
+    },
+    {
+      "instrument": "RM0",
+      "no": 5,
+      "open_date": "2023-06-15",
+      "close_date": "2023-07-31",
+      "holding_days": 46,
+      "open_price": 3089.0,
+      "close_price": 3606.0,
+      "net_pnl": -1672072.48,
+      "return_rate": -16.7,
+      "margin": 997747.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3846.0,
+      "max_adverse_pct": 24.51
+    },
+    {
+      "instrument": "FG0",
+      "no": 2,
+      "open_date": "2021-04-06",
+      "close_date": "2021-05-26",
+      "holding_days": 50,
+      "open_price": 2159.0,
+      "close_price": 2576.0,
+      "net_pnl": -1486205.66,
+      "return_rate": -19.3,
+      "margin": 999185.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2945.0,
+      "max_adverse_pct": 36.41
+    },
+    {
+      "instrument": "CF0",
+      "no": 3,
+      "open_date": "2021-09-27",
+      "close_date": "2021-11-04",
+      "holding_days": 38,
+      "open_price": 18510.0,
+      "close_price": 21355.0,
+      "net_pnl": -1282043.92,
+      "return_rate": -15.4,
+      "margin": 999540.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 22960.0,
+      "max_adverse_pct": 24.04
+    },
+    {
+      "instrument": "ZN0",
+      "no": 1,
+      "open_date": "2020-06-19",
+      "close_date": "2020-09-07",
+      "holding_days": 80,
+      "open_price": 16985.0,
+      "close_price": 19805.0,
+      "net_pnl": -1270655.55,
+      "return_rate": -16.6,
+      "margin": 993622.5,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 20460.0,
+      "max_adverse_pct": 20.46
+    },
+    {
+      "instrument": "AG0",
+      "no": 5,
+      "open_date": "2022-10-24",
+      "close_date": "2023-01-05",
+      "holding_days": 73,
+      "open_price": 4542.0,
+      "close_price": 5210.0,
+      "net_pnl": -1224224.62,
+      "return_rate": -14.7,
+      "margin": 997423.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5443.0,
+      "max_adverse_pct": 19.84
+    },
+    {
+      "instrument": "TA0",
+      "no": 5,
+      "open_date": "2022-04-29",
+      "close_date": "2022-06-17",
+      "holding_days": 49,
+      "open_price": 6368.0,
+      "close_price": 6980.0,
+      "net_pnl": -962935.64,
+      "return_rate": -9.6,
+      "margin": 999776.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 7728.0,
+      "max_adverse_pct": 21.36
+    },
+    {
+      "instrument": "SA0",
+      "no": 3,
+      "open_date": "2021-09-07",
+      "close_date": "2021-10-20",
+      "holding_days": 43,
+      "open_price": 2865.0,
+      "close_price": 3221.0,
+      "net_pnl": -955711.05,
+      "return_rate": -12.4,
+      "margin": 998166.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3648.0,
+      "max_adverse_pct": 27.33
+    },
+    {
+      "instrument": "SN0",
+      "no": 4,
+      "open_date": "2021-12-30",
+      "close_date": "2022-03-10",
+      "holding_days": 70,
+      "open_price": 294260.0,
+      "close_price": 337500.0,
+      "net_pnl": -952669.87,
+      "return_rate": -14.7,
+      "margin": 971058.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 395000.0,
+      "max_adverse_pct": 34.24
+    },
+    {
+      "instrument": "I0",
+      "no": 4,
+      "open_date": "2022-11-17",
+      "close_date": "2023-01-09",
+      "holding_days": 53,
+      "open_price": 740.0,
+      "close_price": 823.0,
+      "net_pnl": -856509.89,
+      "return_rate": -11.2,
+      "margin": 990860.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 883.0,
+      "max_adverse_pct": 19.32
+    },
+    {
+      "instrument": "SN0",
+      "no": 9,
+      "open_date": "2026-01-06",
+      "close_date": "2026-02-02",
+      "holding_days": 27,
+      "open_price": 348820.0,
+      "close_price": 392650.0,
+      "net_pnl": -834178.79,
+      "return_rate": -12.6,
+      "margin": 994137.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 469950.0,
+      "max_adverse_pct": 34.73
+    },
+    {
+      "instrument": "TA0",
+      "no": 2,
+      "open_date": "2021-02-01",
+      "close_date": "2021-03-10",
+      "holding_days": 37,
+      "open_price": 4122.0,
+      "close_price": 4448.0,
+      "net_pnl": -792628.22,
+      "return_rate": -7.9,
+      "margin": 999585.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5012.0,
+      "max_adverse_pct": 21.59
+    },
+    {
+      "instrument": "RU0",
+      "no": 2,
+      "open_date": "2020-10-09",
+      "close_date": "2020-11-09",
+      "holding_days": 31,
+      "open_price": 12900.0,
+      "close_price": 14240.0,
+      "net_pnl": -738492.7,
+      "return_rate": -10.4,
+      "margin": 993300.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 16635.0,
+      "max_adverse_pct": 28.95
+    },
+    {
+      "instrument": "I0",
+      "no": 6,
+      "open_date": "2023-10-26",
+      "close_date": "2023-11-28",
+      "holding_days": 33,
+      "open_price": 876.5,
+      "close_price": 951.0,
+      "net_pnl": -649739.93,
+      "return_rate": -8.5,
+      "margin": 991321.5,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 998.5,
+      "max_adverse_pct": 13.92
+    },
+    {
+      "instrument": "SA0",
+      "no": 7,
+      "open_date": "2023-11-09",
+      "close_date": "2023-12-05",
+      "holding_days": 26,
+      "open_price": 1978.0,
+      "close_price": 2125.0,
+      "net_pnl": -571951.96,
+      "return_rate": -7.4,
+      "margin": 997703.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2666.0,
+      "max_adverse_pct": 34.78
+    },
+    {
+      "instrument": "SN0",
+      "no": 5,
+      "open_date": "2023-01-10",
+      "close_date": "2023-02-06",
+      "holding_days": 27,
+      "open_price": 203480.0,
+      "close_price": 219760.0,
+      "net_pnl": -522314.37,
+      "return_rate": -8.0,
+      "margin": 976704.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 244650.0,
+      "max_adverse_pct": 20.23
+    },
+    {
+      "instrument": "HC0",
+      "no": 1,
+      "open_date": "2020-07-08",
+      "close_date": "2020-09-03",
+      "holding_days": 57,
+      "open_price": 3696.0,
+      "close_price": 3942.0,
+      "net_pnl": -513268.7,
+      "return_rate": -6.7,
+      "margin": 999398.4,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4064.0,
+      "max_adverse_pct": 9.96
+    },
+    {
+      "instrument": "CF0",
+      "no": 5,
+      "open_date": "2023-04-07",
+      "close_date": "2023-05-25",
+      "holding_days": 48,
+      "open_price": 14680.0,
+      "close_price": 15565.0,
+      "net_pnl": -497293.72,
+      "return_rate": -6.0,
+      "margin": 986496.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 16465.0,
+      "max_adverse_pct": 12.16
+    },
+    {
+      "instrument": "FG0",
+      "no": 6,
+      "open_date": "2025-07-02",
+      "close_date": "2025-07-31",
+      "holding_days": 29,
+      "open_price": 1052.0,
+      "close_price": 1117.0,
+      "net_pnl": -476083.37,
+      "return_rate": -6.2,
+      "margin": 998348.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 1370.0,
+      "max_adverse_pct": 30.23
+    },
+    {
+      "instrument": "RM0",
+      "no": 3,
+      "open_date": "2021-12-09",
+      "close_date": "2022-01-11",
+      "holding_days": 33,
+      "open_price": 2798.0,
+      "close_price": 2930.0,
+      "net_pnl": -473284.9,
+      "return_rate": -4.7,
+      "margin": 998886.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3023.0,
+      "max_adverse_pct": 8.04
+    },
+    {
+      "instrument": "FG0",
+      "no": 3,
+      "open_date": "2023-03-24",
+      "close_date": "2023-05-08",
+      "holding_days": 45,
+      "open_price": 1630.0,
+      "close_price": 1730.0,
+      "net_pnl": -471579.2,
+      "return_rate": -6.1,
+      "margin": 995930.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 1906.0,
+      "max_adverse_pct": 16.93
+    },
+    {
+      "instrument": "CU0",
+      "no": 2,
+      "open_date": "2021-04-15",
+      "close_date": "2021-05-21",
+      "holding_days": 36,
+      "open_price": 68040.0,
+      "close_price": 72160.0,
+      "net_pnl": -454742.2,
+      "return_rate": -6.1,
+      "margin": 972972.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 78270.0,
+      "max_adverse_pct": 15.04
+    },
+    {
+      "instrument": "SN0",
+      "no": 3,
+      "open_date": "2021-06-30",
+      "close_date": "2021-08-09",
+      "holding_days": 40,
+      "open_price": 214620.0,
+      "close_price": 229020.0,
+      "net_pnl": -447775.28,
+      "return_rate": -6.7,
+      "margin": 997983.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 243990.0,
+      "max_adverse_pct": 13.68
+    },
+    {
+      "instrument": "RU0",
+      "no": 7,
+      "open_date": "2024-09-09",
+      "close_date": "2024-10-16",
+      "holding_days": 37,
+      "open_price": 16880.0,
+      "close_price": 17760.0,
+      "net_pnl": -371054.88,
+      "return_rate": -5.2,
+      "margin": 992544.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 19850.0,
+      "max_adverse_pct": 17.59
+    },
+    {
+      "instrument": "TA0",
+      "no": 7,
+      "open_date": "2023-07-03",
+      "close_date": "2023-08-03",
+      "holding_days": 31,
+      "open_price": 5606.0,
+      "close_price": 5804.0,
+      "net_pnl": -354470.98,
+      "return_rate": -3.5,
+      "margin": 997868.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6148.0,
+      "max_adverse_pct": 9.67
+    },
+    {
+      "instrument": "AL0",
+      "no": 3,
+      "open_date": "2021-04-14",
+      "close_date": "2021-05-21",
+      "holding_days": 37,
+      "open_price": 17895.0,
+      "close_price": 18710.0,
+      "net_pnl": -347930.71,
+      "return_rate": -4.6,
+      "margin": 988698.75,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 20445.0,
+      "max_adverse_pct": 14.25
+    },
+    {
+      "instrument": "FG0",
+      "no": 1,
+      "open_date": "2020-11-11",
+      "close_date": "2020-12-14",
+      "holding_days": 33,
+      "open_price": 1808.0,
+      "close_price": 1886.0,
+      "net_pnl": -332286.26,
+      "return_rate": -4.3,
+      "margin": 996569.6,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2037.0,
+      "max_adverse_pct": 12.67
+    },
+    {
+      "instrument": "AU0",
+      "no": 1,
+      "open_date": "2020-04-14",
+      "close_date": "2020-06-04",
+      "holding_days": 51,
+      "open_price": 377.6,
+      "close_price": 389.74,
+      "net_pnl": -317635.08,
+      "return_rate": -3.2,
+      "margin": 981760.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 402.3,
+      "max_adverse_pct": 6.54
+    },
+    {
+      "instrument": "RB0",
+      "no": 2,
+      "open_date": "2021-02-18",
+      "close_date": "2021-03-23",
+      "holding_days": 33,
+      "open_price": 4529.0,
+      "close_price": 4715.0,
+      "net_pnl": -315902.24,
+      "return_rate": -4.1,
+      "margin": 995021.3,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5017.0,
+      "max_adverse_pct": 10.78
+    },
+    {
+      "instrument": "BU0",
+      "no": 1,
+      "open_date": "2020-06-30",
+      "close_date": "2020-07-28",
+      "holding_days": 28,
+      "open_price": 2678.0,
+      "close_price": 2796.0,
+      "net_pnl": -315336.08,
+      "return_rate": -4.4,
+      "margin": 997287.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2928.0,
+      "max_adverse_pct": 9.34
+    },
+    {
+      "instrument": "P0",
+      "no": 5,
+      "open_date": "2023-06-19",
+      "close_date": "2023-07-31",
+      "holding_days": 42,
+      "open_price": 7196.0,
+      "close_price": 7466.0,
+      "net_pnl": -312186.13,
+      "return_rate": -3.8,
+      "margin": 993048.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 7860.0,
+      "max_adverse_pct": 9.23
+    },
+    {
+      "instrument": "Y0",
+      "no": 2,
+      "open_date": "2020-11-04",
+      "close_date": "2020-12-02",
+      "holding_days": 28,
+      "open_price": 7400.0,
+      "close_price": 7676.0,
+      "net_pnl": -310808.51,
+      "return_rate": -3.7,
+      "margin": 994560.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 8056.0,
+      "max_adverse_pct": 8.86
+    },
+    {
+      "instrument": "CS0",
+      "no": 1,
+      "open_date": "2022-02-21",
+      "close_date": "2022-03-17",
+      "holding_days": 24,
+      "open_price": 3209.0,
+      "close_price": 3326.0,
+      "net_pnl": -304722.56,
+      "return_rate": -3.6,
+      "margin": 997357.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3488.0,
+      "max_adverse_pct": 8.69
+    },
+    {
+      "instrument": "CF0",
+      "no": 6,
+      "open_date": "2024-01-16",
+      "close_date": "2024-02-29",
+      "holding_days": 44,
+      "open_price": 15600.0,
+      "close_price": 16110.0,
+      "net_pnl": -271980.63,
+      "return_rate": -3.3,
+      "margin": 992160.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 16450.0,
+      "max_adverse_pct": 5.45
+    },
+    {
+      "instrument": "NI0",
+      "no": 7,
+      "open_date": "2024-02-22",
+      "close_date": "2024-03-20",
+      "holding_days": 27,
+      "open_price": 131320.0,
+      "close_price": 136560.0,
+      "net_pnl": -263339.4,
+      "return_rate": -4.0,
+      "margin": 984900.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 143100.0,
+      "max_adverse_pct": 8.97
+    },
+    {
+      "instrument": "RB0",
+      "no": 3,
+      "open_date": "2022-01-11",
+      "close_date": "2022-02-15",
+      "holding_days": 35,
+      "open_price": 4589.0,
+      "close_price": 4728.0,
+      "net_pnl": -233685.94,
+      "return_rate": -3.0,
+      "margin": 996271.9,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5034.0,
+      "max_adverse_pct": 9.7
+    },
+    {
+      "instrument": "ZN0",
+      "no": 5,
+      "open_date": "2024-09-19",
+      "close_date": "2024-10-28",
+      "holding_days": 39,
+      "open_price": 24240.0,
+      "close_price": 24970.0,
+      "net_pnl": -231500.12,
+      "return_rate": -3.0,
+      "margin": 992628.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 25940.0,
+      "max_adverse_pct": 7.01
+    },
+    {
+      "instrument": "P0",
+      "no": 9,
+      "open_date": "2025-08-05",
+      "close_date": "2025-08-29",
+      "holding_days": 24,
+      "open_price": 9064.0,
+      "close_price": 9316.0,
+      "net_pnl": -230992.58,
+      "return_rate": -2.8,
+      "margin": 989788.8,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 9736.0,
+      "max_adverse_pct": 7.41
+    },
+    {
+      "instrument": "SN0",
+      "no": 1,
+      "open_date": "2020-06-17",
+      "close_date": "2020-08-11",
+      "holding_days": 55,
+      "open_price": 138420.0,
+      "close_price": 142860.0,
+      "net_pnl": -214470.14,
+      "return_rate": -3.2,
+      "margin": 996624.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 154400.0,
+      "max_adverse_pct": 11.54
+    },
+    {
+      "instrument": "RU0",
+      "no": 6,
+      "open_date": "2024-08-05",
+      "close_date": "2024-09-04",
+      "holding_days": 30,
+      "open_price": 15615.0,
+      "close_price": 16075.0,
+      "net_pnl": -208426.05,
+      "return_rate": -2.9,
+      "margin": 983745.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 16950.0,
+      "max_adverse_pct": 8.55
+    },
+    {
+      "instrument": "AG0",
+      "no": 7,
+      "open_date": "2024-09-25",
+      "close_date": "2024-11-01",
+      "holding_days": 37,
+      "open_price": 7782.0,
+      "close_price": 7964.0,
+      "net_pnl": -195506.95,
+      "return_rate": -2.3,
+      "margin": 994539.6,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 8443.0,
+      "max_adverse_pct": 8.49
+    },
+    {
+      "instrument": "I0",
+      "no": 5,
+      "open_date": "2023-02-16",
+      "close_date": "2023-03-16",
+      "holding_days": 28,
+      "open_price": 880.0,
+      "close_price": 902.0,
+      "net_pnl": -192950.34,
+      "return_rate": -2.5,
+      "margin": 995280.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 936.0,
+      "max_adverse_pct": 6.36
+    },
+    {
+      "instrument": "RB0",
+      "no": 1,
+      "open_date": "2020-07-08",
+      "close_date": "2020-08-19",
+      "holding_days": 42,
+      "open_price": 3702.0,
+      "close_price": 3794.0,
+      "net_pnl": -191991.67,
+      "return_rate": -2.5,
+      "margin": 996208.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3888.0,
+      "max_adverse_pct": 5.02
+    },
+    {
+      "instrument": "A0",
+      "no": 3,
+      "open_date": "2021-09-09",
+      "close_date": "2021-10-19",
+      "holding_days": 40,
+      "open_price": 5878.0,
+      "close_price": 6008.0,
+      "net_pnl": -184975.93,
+      "return_rate": -2.2,
+      "margin": 994557.6,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6295.0,
+      "max_adverse_pct": 7.09
+    },
+    {
+      "instrument": "RM0",
+      "no": 8,
+      "open_date": "2025-01-15",
+      "close_date": "2025-03-05",
+      "holding_days": 49,
+      "open_price": 2433.0,
+      "close_price": 2477.0,
+      "net_pnl": -182858.01,
+      "return_rate": -1.8,
+      "margin": 999963.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2736.0,
+      "max_adverse_pct": 12.45
+    },
+    {
+      "instrument": "NI0",
+      "no": 8,
+      "open_date": "2024-04-22",
+      "close_date": "2024-06-03",
+      "holding_days": 42,
+      "open_price": 143580.0,
+      "close_price": 147430.0,
+      "net_pnl": -178438.65,
+      "return_rate": -2.7,
+      "margin": 990702.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 160500.0,
+      "max_adverse_pct": 11.78
+    },
+    {
+      "instrument": "P0",
+      "no": 2,
+      "open_date": "2020-11-05",
+      "close_date": "2020-11-30",
+      "holding_days": 25,
+      "open_price": 6482.0,
+      "close_price": 6614.0,
+      "net_pnl": -170636.29,
+      "return_rate": -2.0,
+      "margin": 995635.2,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 7028.0,
+      "max_adverse_pct": 8.42
+    },
+    {
+      "instrument": "HC0",
+      "no": 2,
+      "open_date": "2022-01-12",
+      "close_date": "2022-02-15",
+      "holding_days": 34,
+      "open_price": 4751.0,
+      "close_price": 4843.0,
+      "net_pnl": -149664.63,
+      "return_rate": -1.9,
+      "margin": 994384.3,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5166.0,
+      "max_adverse_pct": 8.74
+    },
+    {
+      "instrument": "RU0",
+      "no": 9,
+      "open_date": "2025-08-07",
+      "close_date": "2025-09-12",
+      "holding_days": 36,
+      "open_price": 15525.0,
+      "close_price": 15820.0,
+      "net_pnl": -137141.87,
+      "return_rate": -1.9,
+      "margin": 999810.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 16370.0,
+      "max_adverse_pct": 5.44
+    },
+    {
+      "instrument": "RM0",
+      "no": 7,
+      "open_date": "2024-04-16",
+      "close_date": "2024-05-28",
+      "holding_days": 42,
+      "open_price": 2822.0,
+      "close_price": 2857.0,
+      "net_pnl": -125910.37,
+      "return_rate": -1.2,
+      "margin": 998988.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2963.0,
+      "max_adverse_pct": 5.0
+    },
+    {
+      "instrument": "NI0",
+      "no": 3,
+      "open_date": "2021-04-27",
+      "close_date": "2021-05-20",
+      "holding_days": 23,
+      "open_price": 126560.0,
+      "close_price": 128290.0,
+      "net_pnl": -91285.22,
+      "return_rate": -1.4,
+      "margin": 987168.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 135570.0,
+      "max_adverse_pct": 7.12
+    },
+    {
+      "instrument": "HC0",
+      "no": 3,
+      "open_date": "2023-02-20",
+      "close_date": "2023-03-16",
+      "holding_days": 24,
+      "open_price": 4264.0,
+      "close_price": 4310.0,
+      "net_pnl": -84343.32,
+      "return_rate": -1.1,
+      "margin": 997776.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4498.0,
+      "max_adverse_pct": 5.49
+    },
+    {
+      "instrument": "RM0",
+      "no": 1,
+      "open_date": "2021-04-20",
+      "close_date": "2021-05-14",
+      "holding_days": 24,
+      "open_price": 2984.0,
+      "close_price": 3008.0,
+      "net_pnl": -82407.32,
+      "return_rate": -0.8,
+      "margin": 999640.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3218.0,
+      "max_adverse_pct": 7.84
+    },
+    {
+      "instrument": "MA0",
+      "no": 7,
+      "open_date": "2022-08-26",
+      "close_date": "2022-09-23",
+      "holding_days": 28,
+      "open_price": 2621.0,
+      "close_price": 2639.0,
+      "net_pnl": -58727.42,
+      "return_rate": -0.7,
+      "margin": 997028.4,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2832.0,
+      "max_adverse_pct": 8.05
+    },
+    {
+      "instrument": "MA0",
+      "no": 9,
+      "open_date": "2022-12-30",
+      "close_date": "2023-02-07",
+      "holding_days": 39,
+      "open_price": 2653.0,
+      "close_price": 2668.0,
+      "net_pnl": -48770.79,
+      "return_rate": -0.6,
+      "margin": 999650.4,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2818.0,
+      "max_adverse_pct": 6.22
+    },
+    {
+      "instrument": "MA0",
+      "no": 3,
+      "open_date": "2021-02-22",
+      "close_date": "2021-03-15",
+      "holding_days": 21,
+      "open_price": 2435.0,
+      "close_price": 2447.0,
+      "net_pnl": -42709.64,
+      "return_rate": -0.5,
+      "margin": 999324.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2682.0,
+      "max_adverse_pct": 10.14
+    },
+    {
+      "instrument": "A0",
+      "no": 2,
+      "open_date": "2021-02-19",
+      "close_date": "2021-03-15",
+      "holding_days": 24,
+      "open_price": 5930.0,
+      "close_price": 5956.0,
+      "net_pnl": -38064.04,
+      "return_rate": -0.4,
+      "margin": 996240.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6375.0,
+      "max_adverse_pct": 7.5
+    },
+    {
+      "instrument": "MA0",
+      "no": 11,
+      "open_date": "2025-06-13",
+      "close_date": "2025-07-04",
+      "holding_days": 21,
+      "open_price": 2389.0,
+      "close_price": 2399.0,
+      "net_pnl": -36466.22,
+      "return_rate": -0.4,
+      "margin": 997646.4,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2588.0,
+      "max_adverse_pct": 8.33
+    },
+    {
+      "instrument": "SA0",
+      "no": 4,
+      "open_date": "2022-09-26",
+      "close_date": "2022-10-20",
+      "holding_days": 24,
+      "open_price": 2425.0,
+      "close_price": 2436.0,
+      "net_pnl": -36296.08,
+      "return_rate": -0.5,
+      "margin": 996190.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2558.0,
+      "max_adverse_pct": 5.48
+    },
+    {
+      "instrument": "SA0",
+      "no": 1,
+      "open_date": "2021-04-27",
+      "close_date": "2021-05-20",
+      "holding_days": 23,
+      "open_price": 2001.0,
+      "close_price": 2081.0,
+      "net_pnl": -24122.46,
+      "return_rate": -4.0,
+      "margin": 78039.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2329.0,
+      "max_adverse_pct": 16.39
+    },
+    {
+      "instrument": "BU0",
+      "no": 3,
+      "open_date": "2021-06-16",
+      "close_date": "2021-07-08",
+      "holding_days": 22,
+      "open_price": 3350.0,
+      "close_price": 3358.0,
+      "net_pnl": -18468.8,
+      "return_rate": -0.2,
+      "margin": 998970.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3618.0,
+      "max_adverse_pct": 8.0
+    },
+    {
+      "instrument": "I0",
+      "no": 2,
+      "open_date": "2020-07-10",
+      "close_date": "2020-08-11",
+      "holding_days": 32,
+      "open_price": 790.5,
+      "close_price": 834.0,
+      "net_pnl": -8732.49,
+      "return_rate": -5.5,
+      "margin": 20553.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 915.0,
+      "max_adverse_pct": 15.75
+    },
+    {
+      "instrument": "P0",
+      "no": 4,
+      "open_date": "2021-02-23",
+      "close_date": "2021-03-26",
+      "holding_days": 31,
+      "open_price": 7360.0,
+      "close_price": 7524.0,
+      "net_pnl": -3309.77,
+      "return_rate": -2.2,
+      "margin": 17664.0,
+      "win": false,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 8302.0,
+      "max_adverse_pct": 12.8
+    },
+    {
+      "instrument": "Y0",
+      "no": 4,
+      "open_date": "2022-05-25",
+      "close_date": "2022-06-15",
+      "holding_days": 21,
+      "open_price": 11572.0,
+      "close_price": 11566.0,
+      "net_pnl": 2654.06,
+      "return_rate": 0.1,
+      "margin": 999820.8,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 12280.0,
+      "max_adverse_pct": 6.12
+    },
+    {
+      "instrument": "M0",
+      "no": 3,
+      "open_date": "2022-09-13",
+      "close_date": "2022-10-17",
+      "holding_days": 34,
+      "open_price": 4060.0,
+      "close_price": 4054.0,
+      "net_pnl": 10636.63,
+      "return_rate": 0.1,
+      "margin": 998760.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4196.0,
+      "max_adverse_pct": 3.35
+    },
+    {
+      "instrument": "MA0",
+      "no": 5,
+      "open_date": "2022-01-14",
+      "close_date": "2022-02-11",
+      "holding_days": 28,
+      "open_price": 2713.0,
+      "close_price": 2706.0,
+      "net_pnl": 19826.37,
+      "return_rate": 0.3,
+      "margin": 999469.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2986.0,
+      "max_adverse_pct": 10.06
+    },
+    {
+      "instrument": "M0",
+      "no": 5,
+      "open_date": "2025-04-03",
+      "close_date": "2025-04-25",
+      "holding_days": 22,
+      "open_price": 3039.0,
+      "close_price": 3031.0,
+      "net_pnl": 20256.82,
+      "return_rate": 0.3,
+      "margin": 999223.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3168.0,
+      "max_adverse_pct": 4.24
+    },
+    {
+      "instrument": "I0",
+      "no": 10,
+      "open_date": "2025-12-29",
+      "close_date": "2026-01-19",
+      "holding_days": 21,
+      "open_price": 796.5,
+      "close_price": 794.0,
+      "net_pnl": 22473.12,
+      "return_rate": 0.3,
+      "margin": 994032.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 831.5,
+      "max_adverse_pct": 4.39
+    },
+    {
+      "instrument": "SR0",
+      "no": 2,
+      "open_date": "2024-03-15",
+      "close_date": "2024-04-10",
+      "holding_days": 26,
+      "open_price": 6536.0,
+      "close_price": 6503.0,
+      "net_pnl": 40254.05,
+      "return_rate": 0.5,
+      "margin": 996086.4,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6795.0,
+      "max_adverse_pct": 3.96
+    },
+    {
+      "instrument": "A0",
+      "no": 1,
+      "open_date": "2020-12-24",
+      "close_date": "2021-01-14",
+      "holding_days": 21,
+      "open_price": 5690.0,
+      "close_price": 5655.0,
+      "net_pnl": 49443.63,
+      "return_rate": 0.6,
+      "margin": 996888.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5987.0,
+      "max_adverse_pct": 5.22
+    },
+    {
+      "instrument": "RB0",
+      "no": 4,
+      "open_date": "2023-02-21",
+      "close_date": "2023-03-16",
+      "holding_days": 23,
+      "open_price": 4254.0,
+      "close_price": 4205.0,
+      "net_pnl": 86677.38,
+      "return_rate": 1.2,
+      "margin": 995436.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 4401.0,
+      "max_adverse_pct": 3.46
+    },
+    {
+      "instrument": "AG0",
+      "no": 6,
+      "open_date": "2023-07-13",
+      "close_date": "2023-08-03",
+      "holding_days": 21,
+      "open_price": 5727.0,
+      "close_price": 5632.0,
+      "net_pnl": 136572.27,
+      "return_rate": 1.7,
+      "margin": 999934.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5983.0,
+      "max_adverse_pct": 4.47
+    },
+    {
+      "instrument": "M0",
+      "no": 1,
+      "open_date": "2021-07-01",
+      "close_date": "2021-07-23",
+      "holding_days": 22,
+      "open_price": 3639.0,
+      "close_price": 3578.0,
+      "net_pnl": 138037.31,
+      "return_rate": 1.7,
+      "margin": 999997.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3767.0,
+      "max_adverse_pct": 3.52
+    },
+    {
+      "instrument": "M0",
+      "no": 2,
+      "open_date": "2021-12-23",
+      "close_date": "2022-01-14",
+      "holding_days": 22,
+      "open_price": 3246.0,
+      "close_price": 3186.0,
+      "net_pnl": 151953.41,
+      "return_rate": 1.8,
+      "margin": 997171.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3298.0,
+      "max_adverse_pct": 1.6
+    },
+    {
+      "instrument": "AU0",
+      "no": 5,
+      "open_date": "2026-01-12",
+      "close_date": "2026-02-02",
+      "holding_days": 21,
+      "open_price": 1026.28,
+      "close_price": 1008.6,
+      "net_pnl": 157288.61,
+      "return_rate": 1.7,
+      "margin": 923652.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 1258.72,
+      "max_adverse_pct": 22.65
+    },
+    {
+      "instrument": "SA0",
+      "no": 2,
+      "open_date": "2021-07-06",
+      "close_date": "2021-07-27",
+      "holding_days": 21,
+      "open_price": 2319.0,
+      "close_price": 2270.0,
+      "net_pnl": 160185.63,
+      "return_rate": 2.1,
+      "margin": 994851.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 2648.0,
+      "max_adverse_pct": 14.19
+    },
+    {
+      "instrument": "BU0",
+      "no": 2,
+      "open_date": "2021-05-17",
+      "close_date": "2021-06-08",
+      "holding_days": 22,
+      "open_price": 3254.0,
+      "close_price": 3162.0,
+      "net_pnl": 200074.9,
+      "return_rate": 2.8,
+      "margin": 997676.4,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 3382.0,
+      "max_adverse_pct": 3.93
+    },
+    {
+      "instrument": "TA0",
+      "no": 6,
+      "open_date": "2023-01-13",
+      "close_date": "2023-02-10",
+      "holding_days": 28,
+      "open_price": 5580.0,
+      "close_price": 5460.0,
+      "net_pnl": 212823.84,
+      "return_rate": 2.2,
+      "margin": 998820.0,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5852.0,
+      "max_adverse_pct": 4.87
+    },
+    {
+      "instrument": "AG0",
+      "no": 2,
+      "open_date": "2020-12-18",
+      "close_date": "2021-01-11",
+      "holding_days": 24,
+      "open_price": 5414.0,
+      "close_price": 5123.0,
+      "net_pnl": 443617.84,
+      "return_rate": 5.4,
+      "margin": 994010.4,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 5805.0,
+      "max_adverse_pct": 7.22
+    },
+    {
+      "instrument": "FG0",
+      "no": 4,
+      "open_date": "2023-07-14",
+      "close_date": "2023-08-14",
+      "holding_days": 31,
+      "open_price": 1678.0,
+      "close_price": 1578.0,
+      "net_pnl": 456508.75,
+      "return_rate": 6.0,
+      "margin": 999081.2,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 1867.0,
+      "max_adverse_pct": 11.26
+    },
+    {
+      "instrument": "AG0",
+      "no": 3,
+      "open_date": "2021-02-02",
+      "close_date": "2021-02-26",
+      "holding_days": 24,
+      "open_price": 5879.0,
+      "close_price": 5552.0,
+      "net_pnl": 459458.23,
+      "return_rate": 5.6,
+      "margin": 994726.8,
+      "win": true,
+      "anomaly_types": [
+        "长持仓(>20天)"
+      ],
+      "max_high_during_trade": 6085.0,
+      "max_adverse_pct": 3.5
+    }
+  ]
+}
