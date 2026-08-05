@@ -310,6 +310,7 @@
                 <div class="card">
                   <div class="k">收益率</div>
                   <div class="v" :class="pnlClass(curTrade()?.return_rate)" x-text="(curTrade()?.return_rate ?? 0) + '%'"></div>
+                  <span class="muted" style="font-size:11px">(<span x-text="(curTrade()?.points >= 0 ? '+' : '') + curTrade()?.points"></span> / <span x-text="curTrade()?.open_price"></span>)</span>
                 </div>
                 <div class="card">
                   <div class="k">开仓价格</div>
@@ -318,6 +319,28 @@
                 <div class="card">
                   <div class="k">平仓价格</div>
                   <div class="v" x-text="curTrade()?.close_price ?? '—'"></div>
+                </div>
+              </div>
+
+              <!-- 策略参数卡片 -->
+              <div class="metrics metrics-4" style="grid-template-columns:repeat(4,1fr);margin:10px 0 0">
+                <div class="card">
+                  <div class="k">带宽阈值</div>
+                  <div class="v" style="font-size:16px" x-text="(current?.params?.bandwidth_min ?? '—')"></div>
+                </div>
+                <div class="card">
+                  <div class="k">超越左峰阈值</div>
+                  <div class="v" style="font-size:16px" x-text="(((current?.params?.zone_upper ?? 1) - 1) * 100).toFixed(0) + '%' + ' ~ ' + (((current?.params?.zone_lower ?? 1) - 1) * 100).toFixed(0) + '%'"
+                    ></div>
+                  <span class="muted" style="font-size:11px">(<span x-text="curChart()?.markers.h_left ? '+' + (curTrade()?.open_price - curChart()?.markers.h_left.price).toFixed(1) : '—'"></span>)</span>
+                </div>
+                <div class="card">
+                  <div class="k">扫描窗口阈值</div>
+                  <div class="v" style="font-size:16px" x-text="(current?.params?.left_peak_lookback ?? '—') + ' 根'"></div>
+                </div>
+                <div class="card">
+                  <div class="k">启动扫描位置</div>
+                  <div class="v" style="font-size:16px">中轨</div>
                 </div>
               </div>
 
