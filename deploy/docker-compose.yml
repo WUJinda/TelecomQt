@@ -18,6 +18,7 @@ services:
       - EXPERIMENTS_DIR=/data/experiments
       - ANALYTICS_DIR=/data/analytics
       - MARKET_DATA_DIR=/app/market-data
+      - DATABASE_PATH=/data/app.db
       - DEPLOY_TOKEN=${DEPLOY_TOKEN:-}
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health', timeout=4).status==200 else 1)"]

@@ -18,6 +18,8 @@ ENV EXPERIMENTS_DIR=/data/experiments
 ENV ANALYTICS_DIR=/data/analytics
 # market-data 路径（symbols router 读品种目录 + 已有合约）
 ENV MARKET_DATA_DIR=/app/market-data
+# SQLite 数据库路径（挂载卷内，部署不丢失）
+ENV DATABASE_PATH=/data/app.db
 VOLUME ["/data"]
 
 EXPOSE 8000
