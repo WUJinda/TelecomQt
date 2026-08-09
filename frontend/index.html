@@ -643,11 +643,18 @@
               <div class="v" style="font-size:14px;color:var(--muted)">策略统计、形态分析、参数优化报告</div>
             </div>
           </div>
-          <template x-for="r in analyticsList" :key="r.report_id">
+          <div style="margin-bottom:12px">
+            <button class="btn sm" :style="analyticsStarredOnly ? 'background:var(--accent);border-color:var(--accent);color:#fff' : ''" @click="analyticsStarredOnly=!analyticsStarredOnly">★ 仅看星标</button>
+            <span class="muted" style="font-size:12px;margin-left:8px" x-show="analyticsStarredOnly" x-text="`已标 ${analyticsList.filter(r=>r.starred).length} 篇`"></span>
+          </div>
+          <template x-for="r in filteredAnalytics()" :key="r.report_id">
             <div class="wrap" style="cursor:pointer;margin-bottom:12px" @click="openReport(r.report_id)">
               <div class="hd">
                 <b x-text="r.title"></b>
-                <span class="pill" x-text="r.strategy_type || '—'"></span>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="pill" x-text="r.strategy_type || '—'"></span>
+                  <span @click="toggleStar(r.report_id, $event)" style="cursor:pointer;font-size:18px;line-height:1" :title="r.starred ? '取消星标' : '添加星标'" x-text="r.starred ? '★' : '☆'"></span>
+                </div>
               </div>
               <div class="muted" style="font-size:13px;line-height:1.6;padding:4px 0" x-text="r.description"></div>
               <div class="muted" style="font-size:12px;margin-top:4px">
@@ -655,7 +662,7 @@
               </div>
             </div>
           </template>
-          <div x-show="analyticsLoaded && analyticsList.length===0" class="empty">暂无统计报告</div>
+          <div x-show="analyticsLoaded && filteredAnalytics().length===0" class="empty" x-text="analyticsStarredOnly ? '没有星标报告' : '暂无统计报告'"></div>
           <div x-show="!analyticsLoaded" class="skel">加载中…</div>
         </div>
       </template>
@@ -671,7 +678,10 @@
           <div class="wrap" style="margin-bottom:14px">
             <div class="hd">
               <b x-text="currentReport.title"></b>
-              <span class="pill" x-text="currentReport.strategy_type || '—'"></span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="pill" x-text="currentReport.strategy_type || '—'"></span>
+                <span @click="toggleStar(currentReport.report_id)" style="cursor:pointer;font-size:18px;line-height:1" :title="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '取消星标' : '添加星标'" x-text="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '★' : '☆'"></span>
+              </div>
             </div>
             <template x-if="currentReport.description">
               <div class="muted" style="font-size:13px;line-height:1.8;padding:8px 0;white-space:pre-wrap" x-html="renderRef(currentReport.description)"></div>
@@ -812,6 +822,7 @@
       analyticsLoaded: false,
       analyticsList: [],
       currentReport: null,
+      analyticsStarredOnly: false,
       commentForm: { author:'DAREWIN', content:'', conclusion:false },
 
       async init() {
@@ -1008,6 +1019,21 @@
       },
 
       // ===== 统计报告 =====
+      filteredAnalytics() {
+        if (!this.analyticsStarredOnly) return this.analyticsList;
+        return this.analyticsList.filter(r => r.starred);
+      },
+      async toggleStar(report_id, e) {
+        if (e) { e.stopPropagation(); }
+        try {
+          const r = await fetch(`/api/analytics/${report_id}/star`, { method: 'POST' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          // 同步更新列表中的状态
+          const item = this.analyticsList.find(x => x.report_id === report_id);
+          if (item) item.starred = data.starred;
+        } catch (e) { this.error = '星标失败：' + e.message; }
+      },
       async loadAnalytics() {
         this.error = '';
         try {

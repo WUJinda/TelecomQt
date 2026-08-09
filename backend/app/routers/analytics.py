@@ -22,7 +22,26 @@ from ..models import AnalyticsComment
 router = APIRouter()
 
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "analytics"
+_STARRED_FILE = _DATA_DIR / "_starred.json"
 _SAFE_ID = re.compile(r'^[\w-]+$')
+
+
+def _load_starred() -> list[str]:
+    """读取星标报告 ID 列表。"""
+    if _STARRED_FILE.exists():
+        try:
+            return json.loads(_STARRED_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+    return []
+
+
+def _save_starred(ids: list[str]):
+    """保存星标列表。"""
+    _STARRED_FILE.write_text(
+        json.dumps(sorted(set(ids)), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _data_dir() -> Path:
@@ -54,20 +73,25 @@ class CommentCreate(BaseModel):
 
 @router.get("/analytics")
 def list_reports():
-    """列出所有统计报告（元信息摘要）。"""
+    """列出所有统计报告（元信息摘要 + 星标状态）。"""
     d = _data_dir()
     if not d.exists():
         return []
+    starred = set(_load_starred())
     out = []
     for p in sorted(d.glob("*.json")):
+        if p.name.startswith("_"):
+            continue
         try:
             raw = json.loads(p.read_text(encoding="utf-8"))
+            rid = raw.get("report_id", p.stem)
             out.append({
-                "report_id": raw.get("report_id", p.stem),
+                "report_id": rid,
                 "title": raw.get("title", p.stem),
                 "strategy_type": raw.get("strategy_type", ""),
                 "created_at": raw.get("created_at", ""),
                 "description": raw.get("description", ""),
+                "starred": rid in starred,
             })
         except Exception:
             continue
@@ -83,6 +107,24 @@ def get_report(report_id: str, session: Session = Depends(get_session)):
     ).order_by(AnalyticsComment.created_at.desc())
     report["comments"] = session.exec(stmt).all()
     return report
+
+
+@router.post("/analytics/{report_id}/star")
+def toggle_star(report_id: str):
+    """切换星标状态（toggle）。"""
+    if not _SAFE_ID.match(report_id):
+        raise HTTPException(status_code=400, detail="无效的报告 ID")
+    # 验证报告存在
+    _load_report(report_id)
+    starred = _load_starred()
+    if report_id in starred:
+        starred.remove(report_id)
+        state = False
+    else:
+        starred.append(report_id)
+        state = True
+    _save_starred(starred)
+    return {"report_id": report_id, "starred": state}
 
 
 @router.post("/analytics/{report_id}/comments")
