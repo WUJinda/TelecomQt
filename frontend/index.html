@@ -89,6 +89,36 @@
     .anomaly-badge{display:inline-block;background:#3a2a0e;border:1px solid #e8a33d;color:#e8a33d;
       padding:0 5px;border-radius:8px;font-size:11px;margin-left:4px;cursor:help;white-space:nowrap}
     td.warn{color:#e8a33d;font-weight:600}
+
+    /* ===== 回测中心 ===== */
+    .bt-layout{display:flex;gap:14px;min-height:calc(100vh - 80px)}
+    .bt-col-left{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;
+      overflow-y:auto;max-height:calc(100vh - 100px)}
+    .bt-session-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+      cursor:pointer;margin-bottom:4px;border:1px solid transparent;transition:background .15s}
+    .bt-session-item:hover{background:var(--panel2)}
+    .bt-session-item.active{background:var(--panel2);border-color:var(--accent)}
+    .bt-col-mid{overflow-y:auto;max-height:calc(100vh - 100px);padding-right:2px}
+    .bt-param-row{margin-bottom:8px}
+    .bt-param-row label{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+    .bt-param-row input[type="range"]{height:4px;min-height:4px;padding:0}
+    .bt-instrument-list{max-height:200px;overflow-y:auto;border:1px solid var(--border);
+      border-radius:8px;padding:6px;background:var(--panel)}
+    .bt-instrument-item{display:flex;align-items:center;gap:6px;padding:3px 6px;
+      font-size:13px;cursor:pointer;border-radius:4px}
+    .bt-instrument-item:hover{background:var(--panel2)}
+    .bt-instrument-item input[type="checkbox"]{width:auto!important;accent-color:var(--accent)}
+    .bt-record-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;
+      cursor:pointer;margin-bottom:4px;border:1px solid var(--border);transition:background .15s}
+    .bt-record-item:hover{background:var(--panel2)}
+    .bt-record-item.active{background:var(--panel2);border-color:var(--accent)}
+    .bt-col-right{overflow-y:auto;max-height:calc(100vh - 100px);padding-right:2px}
+    #bt-chart{width:100%;height:280px}
+    @media(max-width:900px){
+      .bt-layout{flex-direction:column;min-height:auto}
+      .bt-col-left{max-height:none;width:auto!important}
+      .bt-col-mid,.bt-col-right{max-height:none;width:auto!important}
+    }
   </style>
 </head>
 <body>
@@ -102,10 +132,11 @@
       <button :class="tab==='plans' && 'active'" @click="switchTab('plans')">交易计划</button>
       <button :class="tab==='symbols' && 'active'" @click="switchTab('symbols')">品种查询</button>
       <button :class="tab==='analytics' && 'active'" @click="switchTab('analytics')">统计报告</button>
+      <button :class="tab==='backtest' && 'active'" @click="switchTab('backtest')">🧪 回测中心</button>
     </nav>
   </header>
 
-  <main>
+  <main :style="tab==='backtest' && 'max-width:1500px'">
     <div x-show="error" class="err" x-text="error" style="margin-top:14px"></div>
 
     <!-- ============ 报告 ============ -->
@@ -264,7 +295,14 @@
 
           <details>
             <summary>策略参数</summary>
-            <pre style="color:var(--muted);font-size:12px" x-text="JSON.stringify(current.params||{},null,2)"></pre>
+            <div class="params-grid" style="padding:8px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:6px 20px;font-size:13px">
+              <template x-for="p in paramsToText(current.params||{})" :key="p.label">
+                <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:3px 0">
+                  <span class="muted" x-text="p.label"></span>
+                  <b x-text="p.value"></b>
+                </div>
+              </template>
+            </div>
           </details>
 
           <div class="note">说明：收益曲线按平仓日累计；明细里的盈亏已扣手续费。「总收益率」= 总净盈亏 ÷ 总占用保证金（未按时间加权，并非账户实际收益率）。颜色遵循期货「红涨绿跌」。</div>
@@ -783,6 +821,199 @@
         </div>
       </template>
     </section>
+
+    <!-- ============ 回测中心 ============ -->
+    <section x-show="tab==='backtest'">
+      <div class="bt-layout">
+        <!-- 左栏：会话管理 -->
+        <div class="bt-col-left" style="width:220px;flex-shrink:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <b style="font-size:14px">📁 测试会话</b>
+            <button class="btn sm" @click="btShowNewSession = !btShowNewSession" :style="btShowNewSession && 'border-color:var(--accent)'">➕</button>
+          </div>
+          <div x-show="btShowNewSession" style="margin-bottom:10px">
+            <input x-model="btNewSessionName" @keydown.enter="createBtSession()" placeholder="输入会话名称…" style="font-size:13px">
+            <div style="display:flex;gap:4px;margin-top:4px">
+              <button class="btn sm accent" @click="createBtSession()">创建</button>
+              <button class="btn sm" @click="btShowNewSession=false;btNewSessionName=''">取消</button>
+            </div>
+          </div>
+          <template x-for="s in btSessions" :key="s.id">
+            <div class="bt-session-item" :class="{'active': btCurrentSessionId === s.id}" @click="selectBtSession(s.id)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" x-text="s.name"></div>
+                <div class="muted" style="font-size:11px" x-text="(s.record_count||0) + ' 条回测'"></div>
+              </div>
+              <button class="btn sm danger" @click.stop="deleteBtSession(s.id)" style="flex-shrink:0;padding:2px 6px;font-size:11px">✕</button>
+            </div>
+          </template>
+          <div x-show="btSessions.length===0" class="empty" style="padding:20px 0;font-size:13px">暂无会话<br><span style="font-size:11px">点击 ➕ 创建</span></div>
+        </div>
+
+        <!-- 中栏：参数配置 + 回测列表 -->
+        <div class="bt-col-mid" style="width:360px;flex-shrink:0">
+          <!-- 参数配置 -->
+          <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+              <b style="font-size:14px">⚙️ 参数配置</b>
+              <button class="btn sm" @click="resetBtParams()">↩ 恢复默认</button>
+            </div>
+            <template x-for="group in btParamGroups" :key="group.name">
+              <details open style="margin-bottom:6px">
+                <summary style="font-size:13px;font-weight:600;color:var(--text)" x-text="group.name"></summary>
+                <div style="padding:8px 0 0 12px">
+                  <template x-for="p in group.params" :key="p.key">
+                    <div class="bt-param-row">
+                      <label x-text="p.label"></label>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <input type="range" :min="p.min" :max="p.max" :step="p.step" x-model.number="btCurrentParams[p.key]" style="flex:1;accent-color:var(--accent)">
+                        <input type="number" :min="p.min" :max="p.max" :step="p.step" x-model.number="btCurrentParams[p.key]" style="width:80px;flex-shrink:0">
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </details>
+            </template>
+            <div x-show="btParamGroups.length===0" class="muted" style="font-size:12px;padding:8px 0">加载参数定义中…</div>
+          </div>
+
+          <!-- 品种选择 -->
+          <div class="card" style="margin-bottom:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+              <b style="font-size:14px">📦 选择品种</b>
+              <span class="muted" style="font-size:12px">已选 <b style="color:var(--accent)" x-text="btSelectedInstruments.length"></b>/<span x-text="btDatasets.length"></span></span>
+            </div>
+            <input x-model="btDatasetSearch" placeholder="搜索品种…" style="font-size:13px;margin-bottom:6px">
+            <div class="bt-instrument-list">
+              <template x-for="d in filteredBtDatasets()" :key="d">
+                <label class="bt-instrument-item">
+                  <input type="checkbox" :value="d" x-model="btSelectedInstruments">
+                  <span x-text="d"></span>
+                </label>
+              </template>
+              <div x-show="filteredBtDatasets().length===0" class="muted" style="font-size:12px;padding:6px">无匹配品种</div>
+            </div>
+          </div>
+
+          <!-- 回测标注 + 执行 -->
+          <div class="card" style="margin-bottom:14px">
+            <label style="font-size:12px;color:var(--muted)">回测标注</label>
+            <input x-model="btLabel" placeholder="给这次回测起个名字，如 bw=0.18" style="margin-top:2px">
+            <button class="btn accent" style="width:100%;margin-top:10px;padding:8px;font-size:14px"
+                    @click="runBacktest()"
+                    :disabled="btRunning || !btCurrentSessionId || btSelectedInstruments.length===0">
+              <span x-show="!btRunning">🔄 开始回测</span>
+              <span x-show="btRunning">⏳ 回测中…</span>
+            </button>
+            <div x-show="!btCurrentSessionId" class="muted" style="font-size:11px;margin-top:4px;text-align:center">请先选择或创建会话</div>
+          </div>
+
+          <!-- 分隔线 -->
+          <div style="border-top:1px solid var(--border);margin:14px 0;padding-top:10px">
+            <b style="font-size:14px">📋 本会话回测记录</b>
+            <span class="pill" style="margin-left:6px" x-text="btRecords.length"></span>
+          </div>
+
+          <!-- 回测记录列表 -->
+          <template x-for="r in btRecords" :key="r.id">
+            <div class="bt-record-item" :class="{'active': btCurrentRecordId === r.id}" @click="openBtRecord(r.id)">
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;font-size:13px" x-text="r.label || '(无标注)'"></div>
+                <div style="display:flex;gap:8px;font-size:11px" class="muted">
+                  <span :class="pnlClass(r.total_pnl)" x-text="fmtMoney(r.total_pnl)"></span>
+                  <span x-text="(r.win_rate??0)+'% 胜'"></span>
+                  <span x-text="(r.total_trades||0)+'笔'"></span>
+                </div>
+              </div>
+              <button class="btn sm danger" @click.stop="deleteBtRecord(r.id)" style="flex-shrink:0;padding:2px 6px;font-size:11px">✕</button>
+            </div>
+          </template>
+          <div x-show="btRecords.length===0 && btCurrentSessionId" class="empty" style="padding:20px 0;font-size:13px">本会话暂无回测记录</div>
+          <div x-show="!btCurrentSessionId" class="empty" style="padding:20px 0;font-size:13px">← 请先选择会话</div>
+        </div>
+
+        <!-- 右栏：结果展示 -->
+        <div class="bt-col-right" style="flex:1;min-width:0">
+          <template x-if="btCurrentResult">
+            <div>
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+                <h3 style="margin:0;font-size:16px" x-text="btCurrentResult.strategy_name || '回测结果'"></h3>
+                <span class="pill" x-show="btCurrentResult.direction" x-text="dirLabel(btCurrentResult.direction)"></span>
+                <span class="pill" x-show="btCurrentResult.generated_at" x-text="fmtTime(btCurrentResult.generated_at)"></span>
+              </div>
+
+              <!-- 指标卡 -->
+              <div class="metrics">
+                <div class="card"><div class="k">总盈亏</div><div class="v" :class="pnlClass(btCurrentResult.summary?.total_pnl)" x-text="fmtMoney(btCurrentResult.summary?.total_pnl)"></div></div>
+                <div class="card"><div class="k">总收益率</div><div class="v" :class="pnlClass(btCurrentResult.summary?.total_return_rate)" x-text="(btCurrentResult.summary?.total_return_rate??0)+'%'"></div></div>
+                <div class="card"><div class="k">胜率</div><div class="v" x-text="(btCurrentResult.summary?.win_rate??0)+'%'"></div></div>
+                <div class="card"><div class="k">交易笔数</div><div class="v" x-text="btCurrentResult.summary?.total_trades??0"></div></div>
+                <div class="card"><div class="k">最大回撤</div><div class="v" :class="negClass(btCurrentResult.summary?.max_drawdown)" x-text="fmtMoney(btCurrentResult.summary?.max_drawdown)"></div></div>
+                <div class="card"><div class="k">有交易品种</div><div class="v" x-text="(btCurrentResult.summary?.instruments_with_trades??0)+' / '+(btCurrentResult.summary?.instruments_tested??0)"></div></div>
+              </div>
+
+              <!-- 收益曲线 -->
+              <div class="wrap">
+                <div class="hd"><b>累计盈亏曲线</b><span class="muted" style="font-size:12px">（按平仓日累计净盈亏）</span></div>
+                <div id="bt-chart" x-ref="btchart"></div>
+              </div>
+
+              <!-- 逐笔交易明细 -->
+              <div class="wrap">
+                <div class="hd"><b>逐笔交易明细</b></div>
+                <div style="overflow-x:auto">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th class="l">#</th><th class="l">品种</th>
+                        <th>开仓日期</th><th>开仓价</th><th>平仓日期</th><th>平仓价</th>
+                        <th>手数</th><th>持仓天</th><th>净盈亏</th><th>收益率</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <template x-for="(t, i) in btAllTrades()" :key="i">
+                        <tr>
+                          <td class="l" x-text="i+1"></td>
+                          <td class="l" x-text="instIcon(t.instrument) + t.instrument"></td>
+                          <td x-text="t.open_date"></td><td x-text="t.open_price"></td>
+                          <td x-text="t.close_date"></td><td x-text="t.close_price"></td>
+                          <td x-text="t.volume"></td>
+                          <td :class="{'warn': (t.holding_days||0) > 20}" x-text="t.holding_days"></td>
+                          <td :class="pnlClass(t.net_pnl)" x-text="fmtMoney(t.net_pnl)"></td>
+                          <td :class="pnlClass(t.return_rate)" x-text="(t.return_rate??0)+'%'"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                  <div x-show="btAllTrades().length===0" class="empty">无交易记录</div>
+                </div>
+              </div>
+
+              <!-- 策略参数快照 -->
+              <details style="margin-top:14px">
+                <summary>策略参数快照</summary>
+                <div class="params-grid" style="padding:8px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:6px 20px;font-size:13px">
+                  <template x-for="p in paramsToText(btCurrentResult.params||{})" :key="p.label">
+                    <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:3px 0">
+                      <span class="muted" x-text="p.label"></span>
+                      <b x-text="p.value"></b>
+                    </div>
+                  </template>
+                </div>
+              </details>
+            </div>
+          </template>
+
+          <!-- 空状态 -->
+          <template x-if="!btCurrentResult">
+            <div class="empty" style="padding:80px 0">
+              <div style="font-size:48px;margin-bottom:10px">🧪</div>
+              <div>选择一条回测记录查看结果，或配置参数后开始回测</div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -825,6 +1056,24 @@
       analyticsStarredOnly: false,
       commentForm: { author:'DAREWIN', content:'', conclusion:false },
 
+      // ===== 回测中心 =====
+      btSessions: [],           // 会话列表
+      btCurrentSessionId: null, // 当前选中会话
+      btRecords: [],           // 当前会话的回测记录列表
+      btParamGroups: [],       // 参数定义（从API获取）
+      btDatasets: [],          // 可用品种列表
+      btCurrentParams: {},     // 当前参数值
+      btSelectedInstruments: [], // 选中的品种
+      btLabel: '',             // 回测标注
+      btRunning: false,        // 回测执行中
+      btCurrentResult: null,   // 当前展示的回测结果
+      btCurrentRecordId: null, // 当前选中的记录
+      btDatasetSearch: '',     // 品种搜索关键词
+      btNewSessionName: '',    // 新建会话输入
+      btShowNewSession: false, // 新建会话输入框显示
+      btChart: null,           // 右栏 ECharts 实例
+      btLoaded: false,         // 回测中心数据是否已加载
+
       async init() {
         await this.loadList();
         // 注册全局回调供交叉引用链接使用
@@ -832,6 +1081,7 @@
         window.addEventListener('resize', () => {
           if (this._chart && this.$refs.chart && this.$refs.chart.offsetWidth) this._chart.resize();
           if (this._kchart && this.$refs.kchart && this.$refs.kchart.offsetWidth) this._kchart.resize();
+          if (this.btChart) this.btChart.resize();
         });
       },
       async loadList() {
@@ -871,11 +1121,14 @@
       },
       // ===== Tab 切换（切到想法/计划时懒加载） =====
       switchTab(t) {
+        // 离开回测中心时释放图表
+        if (this.tab === 'backtest' && t !== 'backtest') this.disposeBtChart();
         this.tab = t;
         if (t === 'ideas') this.loadIdeas();
         else if (t === 'plans') this.loadPlans();
         else if (t === 'symbols' && !this.symbolsLoaded) this.loadSymbols();
         else if (t === 'analytics' && !this.analyticsLoaded) this.loadAnalytics();
+        else if (t === 'backtest') this.initBtData();
       },
 
       // ===== 想法 CRUD =====
@@ -1314,9 +1567,249 @@
 
       // ===== 想法 CRUD =====
       fmtMoney(n) { if (n == null || n === '') return '—'; const v = Number(n); return (v >= 0 ? '+' : '') + v.toLocaleString('zh-CN', { maximumFractionDigits: 2 }); },
+      paramsToText(p) {
+        const map = {
+          'bb_period': ['布林带周期', v => `${v} 根`],
+          'bb_std': ['标准差倍数', v => `${v} σ`],
+          'bandwidth_min': ['带宽阈值', v => `${v}`],
+          'left_peak_lookback': ['扫描窗口', v => `${v} 根 K线`],
+          'zone_lower': ['左峰区域下界', v => `${((v-1)*100).toFixed(1)}%`],
+          'zone_upper': ['左峰区域上界', v => `+${((v-1)*100).toFixed(1)}%`],
+          'bb_ddof': ['标准差自由度', v => `${v}`],
+          'fee_rate': ['手续费率', v => `${(v*10000).toFixed(1)}‱`],
+          'max_per_trade': ['单笔上限', v => `${(v/10000).toFixed(0)} 万`],
+          'max_total_exposure': ['总敞口上限', v => `${(v/10000).toFixed(0)} 万`],
+        };
+        return Object.entries(p).map(([k, v]) => {
+          const m = map[k];
+          return m ? { label: m[0], value: m[1](v) } : { label: k, value: String(v) };
+        });
+      },
       dirLabel(d) { return d === 'short' ? '做空' : d === 'long' ? '做多' : (d || '—'); },
       pnlClass(n) { if (n == null) return ''; return Number(n) > 0 ? 'pos' : Number(n) < 0 ? 'neg' : ''; },
       negClass(n) { if (n == null) return ''; return Number(n) < 0 ? 'neg' : ''; },
+
+      // ===== 回测中心 =====
+      initBtData() {
+        if (!this.btLoaded) {
+          this.btLoaded = true;
+          this.loadBtSessions();
+          this.loadBtParams();
+          this.loadBtDatasets();
+        }
+      },
+      async loadBtSessions() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/sessions');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.btSessions = await r.json();
+        } catch (e) { this.error = '加载会话列表失败：' + e.message; console.error(e); }
+      },
+      async createBtSession() {
+        if (!this.btNewSessionName.trim()) return;
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: this.btNewSessionName.trim() })
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const session = await r.json();
+          this.btSessions.push(session);
+          this.btNewSessionName = '';
+          this.btShowNewSession = false;
+          this.selectBtSession(session.id);
+        } catch (e) { this.error = '创建会话失败：' + e.message; console.error(e); }
+      },
+      async deleteBtSession(id) {
+        if (!confirm('确定删除此会话及其所有回测记录？')) return;
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/sessions/' + id, { method: 'DELETE' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.btSessions = this.btSessions.filter(s => s.id !== id);
+          if (this.btCurrentSessionId === id) {
+            this.btCurrentSessionId = null;
+            this.btRecords = [];
+            this.btCurrentResult = null;
+            this.btCurrentRecordId = null;
+            this.disposeBtChart();
+          }
+        } catch (e) { this.error = '删除会话失败：' + e.message; console.error(e); }
+      },
+      async selectBtSession(id) {
+        this.btCurrentSessionId = id;
+        this.btCurrentResult = null;
+        this.btCurrentRecordId = null;
+        this.disposeBtChart();
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/sessions/' + id + '/records');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.btRecords = await r.json();
+        } catch (e) { this.error = '加载回测记录失败：' + e.message; console.error(e); }
+      },
+      async loadBtParams() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/strategy-params');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          this.btParamGroups = data.groups || [];
+          this.resetBtParams();
+        } catch (e) { this.error = '加载策略参数失败：' + e.message; console.error(e); }
+      },
+      resetBtParams() {
+        const params = {};
+        for (const group of this.btParamGroups) {
+          for (const p of (group.params || [])) {
+            params[p.key] = p.default;
+          }
+        }
+        this.btCurrentParams = params;
+      },
+      async loadBtDatasets() {
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/datasets');
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          // 后端返回 dict 列表，前端只需要 instrument 字符串列表
+          this.btDatasets = (data.instruments || data || []).map(d =>
+            typeof d === 'string' ? d : d.instrument
+          );
+          // 默认勾选前5个
+          this.btSelectedInstruments = this.btDatasets.slice(0, 5);
+        } catch (e) { this.error = '加载品种列表失败：' + e.message; console.error(e); }
+      },
+      filteredBtDatasets() {
+        const q = this.btDatasetSearch.trim().toLowerCase();
+        if (!q) return this.btDatasets;
+        return this.btDatasets.filter(d => String(d).toLowerCase().includes(q));
+      },
+      async runBacktest() {
+        if (!this.btCurrentSessionId || this.btSelectedInstruments.length === 0 || this.btRunning) return;
+        this.btRunning = true;
+        this.error = '';
+        this.disposeBtChart();
+        try {
+          const r = await fetch('/api/backtest/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              session_id: this.btCurrentSessionId,
+              label: this.btLabel || '',
+              instruments: this.btSelectedInstruments,
+              params: this.btCurrentParams
+            })
+          });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          // run API 返回 {record_id, experiment_id, summary, experiment}
+          // 展平为前端统一格式：直接用 experiment 的字段
+          const exp = data.experiment || data;
+          this.btCurrentResult = exp;
+          this.btCurrentRecordId = data.record_id;
+          // 刷新记录列表
+          await this.selectBtSession(this.btCurrentSessionId);
+          this.btCurrentRecordId = data.record_id;
+          // 渲染图表
+          this.$nextTick(() => this.renderBtChart());
+        } catch (e) { this.error = '回测执行失败：' + e.message; console.error(e); }
+        this.btRunning = false;
+      },
+      async openBtRecord(id) {
+        this.error = '';
+        this.disposeBtChart();
+        try {
+          const r = await fetch('/api/backtest/records/' + id);
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          // record API 返回 {id, ..., experiment: {...}}
+          // 展平：直接用 experiment 的字段
+          this.btCurrentResult = data.experiment || data;
+          this.btCurrentRecordId = id;
+          this.$nextTick(() => this.renderBtChart());
+        } catch (e) { this.error = '加载回测记录失败：' + e.message; console.error(e); }
+      },
+      async deleteBtRecord(id) {
+        if (!confirm('确定删除此回测记录？')) return;
+        this.error = '';
+        try {
+          const r = await fetch('/api/backtest/records/' + id, { method: 'DELETE' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          this.btRecords = this.btRecords.filter(r => r.id !== id);
+          if (this.btCurrentRecordId === id) {
+            this.btCurrentResult = null;
+            this.btCurrentRecordId = null;
+            this.disposeBtChart();
+          }
+        } catch (e) { this.error = '删除记录失败：' + e.message; console.error(e); }
+      },
+      disposeBtChart() {
+        if (this.btChart) { this.btChart.dispose(); this.btChart = null; }
+        const el = document.getElementById('bt-chart');
+        if (el) { const stale = echarts.getInstanceByDom(el); if (stale) stale.dispose(); }
+      },
+      renderBtChart() {
+        const el = document.getElementById('bt-chart');
+        if (!el || !this.btCurrentResult) return;
+        // 同 renderChart：DOM 可能刚插入尚未布局，RAF 等到就绪
+        if (!el.offsetWidth || !el.offsetHeight) {
+          requestAnimationFrame(() => this.renderBtChart());
+          return;
+        }
+        const stale = echarts.getInstanceByDom(el);
+        if (stale) stale.dispose();
+        this.btChart = null;
+
+        const trades = [];
+        for (const inst of (this.btCurrentResult.instruments || [])) {
+          for (const t of (inst.trades || [])) {
+            trades.push({ date: t.close_date, pnl: t.net_pnl || 0 });
+          }
+        }
+        if (!trades.length) {
+          el.innerHTML = '<div class="empty" style="display:flex;align-items:center;justify-content:center;height:100%">本报告无交易记录</div>';
+          return;
+        }
+        trades.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+        let cum = 0;
+        const xs = [], ys = [];
+        for (const t of trades) { cum += t.pnl; xs.push(t.date); ys.push(+cum.toFixed(2)); }
+        el.innerHTML = '';
+        this.btChart = echarts.init(el, 'dark');
+        this.btChart.setOption({
+          backgroundColor: 'transparent',
+          grid: { left: 64, right: 20, top: 20, bottom: 40 },
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'category', data: xs, axisLabel: { color: '#8b93a1' } },
+          yAxis: { type: 'value', name: '累计盈亏', axisLabel: { color: '#8b93a1' }, splitLine: { lineStyle: { color: '#2a2f3a' } } },
+          series: [{
+            type: 'line', step: 'end', showSymbol: true, symbolSize: 6,
+            data: ys, lineStyle: { width: 2, color: '#e5484d' },
+            areaStyle: { opacity: 0.12, color: '#e5484d' }
+          }]
+        });
+      },
+      btAllTrades() {
+        if (!this.btCurrentResult) return [];
+        const out = [];
+        for (const inst of (this.btCurrentResult.instruments || [])) {
+          for (const t of (inst.trades || [])) {
+            out.push({
+              instrument: inst.instrument,
+              open_date: t.open_date, open_price: t.open_price,
+              close_date: t.close_date, close_price: t.close_price,
+              volume: t.volume, holding_days: t.holding_days,
+              net_pnl: t.net_pnl, return_rate: t.return_rate
+            });
+          }
+        }
+        return out;
+      },
     }));
   });
 </script>
