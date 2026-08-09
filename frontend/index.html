@@ -644,7 +644,7 @@
             </div>
           </div>
           <div style="margin-bottom:12px">
-            <button class="btn sm" :style="analyticsStarredOnly ? 'background:var(--accent);border-color:var(--accent);color:#fff' : ''" @click="analyticsStarredOnly=!analyticsStarredOnly">★ 仅看星标</button>
+            <button class="btn sm" :style="analyticsStarredOnly ? 'background:#f5a623;border-color:#f5a623;color:#fff' : ''" @click="analyticsStarredOnly=!analyticsStarredOnly">★ 仅看星标</button>
             <span class="muted" style="font-size:12px;margin-left:8px" x-show="analyticsStarredOnly" x-text="`已标 ${analyticsList.filter(r=>r.starred).length} 篇`"></span>
           </div>
           <template x-for="r in filteredAnalytics()" :key="r.report_id">
@@ -653,7 +653,7 @@
                 <b x-text="r.title"></b>
                 <div style="display:flex;align-items:center;gap:8px">
                   <span class="pill" x-text="r.strategy_type || '—'"></span>
-                  <span @click="toggleStar(r.report_id, $event)" style="cursor:pointer;font-size:18px;line-height:1" :title="r.starred ? '取消星标' : '添加星标'" x-text="r.starred ? '★' : '☆'"></span>
+                  <span @click="toggleStar(r.report_id, $event)" style="cursor:pointer;font-size:18px;line-height:1" :style="r.starred ? 'color:#f5a623' : 'color:#666'" :title="r.starred ? '取消星标' : '添加星标'" x-text="r.starred ? '★' : '☆'"></span>
                 </div>
               </div>
               <div class="muted" style="font-size:13px;line-height:1.6;padding:4px 0" x-text="r.description"></div>
@@ -680,7 +680,7 @@
               <b x-text="currentReport.title"></b>
               <div style="display:flex;align-items:center;gap:8px">
                 <span class="pill" x-text="currentReport.strategy_type || '—'"></span>
-                <span @click="toggleStar(currentReport.report_id)" style="cursor:pointer;font-size:18px;line-height:1" :title="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '取消星标' : '添加星标'" x-text="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '★' : '☆'"></span>
+                <span @click="toggleStar(currentReport.report_id)" style="cursor:pointer;font-size:18px;line-height:1" :style="(analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred) ? 'color:#f5a623' : 'color:#666'" :title="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '取消星标' : '添加星标'" x-text="analyticsList.find(x=>x.report_id===currentReport.report_id)?.starred ? '★' : '☆'"></span>
               </div>
             </div>
             <template x-if="currentReport.description">
