@@ -22,15 +22,20 @@ from ..models import AnalyticsComment
 router = APIRouter()
 
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "analytics"
-_STARRED_FILE = _DATA_DIR / "_starred.json"
 _SAFE_ID = re.compile(r'^[\w-]+$')
+
+
+def _starred_file() -> Path:
+    """星标文件路径，跟随 _data_dir() 保持一致。"""
+    return _data_dir() / "_starred.json"
 
 
 def _load_starred() -> list[str]:
     """读取星标报告 ID 列表。"""
-    if _STARRED_FILE.exists():
+    f = _starred_file()
+    if f.exists():
         try:
-            return json.loads(_STARRED_FILE.read_text(encoding="utf-8"))
+            return json.loads(f.read_text(encoding="utf-8"))
         except Exception:
             return []
     return []
@@ -38,7 +43,9 @@ def _load_starred() -> list[str]:
 
 def _save_starred(ids: list[str]):
     """保存星标列表。"""
-    _STARRED_FILE.write_text(
+    f = _starred_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(
         json.dumps(sorted(set(ids)), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
