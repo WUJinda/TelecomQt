@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
-from .routers import analytics, data_sync, ideas, plans, reports, symbols
+from .routers import analytics, data_sync, ideas, plans, reports, symbols, backtest
 
 # 前端目录：默认源码树 TelecomQt/frontend；Docker 里用环境变量覆盖
 _FRONTEND_DEFAULT = Path(__file__).resolve().parents[2] / "frontend"
@@ -39,6 +39,7 @@ app.include_router(plans.router, prefix="/api", tags=["plans"])
 app.include_router(symbols.router, prefix="/api", tags=["symbols"])
 app.include_router(analytics.router, prefix="/api", tags=["analytics"])
 app.include_router(data_sync.router, prefix="/api", tags=["data"])
+app.include_router(backtest.router, prefix="/api/backtest", tags=["backtest"])
 
 # python-multipart 是 UploadFile 的依赖；不装时启动会报错
 try:

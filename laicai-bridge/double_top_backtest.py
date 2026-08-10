@@ -45,6 +45,7 @@ DEFAULT_PARAMS = {
     "zone_upper": 1.02,           # 左峰区域上界 = H_left * zone_upper
     "bb_ddof": 1,                 # 标准差自由度（1=样本标准差，与 pandas 默认一致）
     "fee_rate": 0.0001,           # 手续费率（双边各收一次）
+    "max_holding_days": 0,        # 最大持仓天数（0 = 不限制）
 }
 
 # 品种保证金率（各交易所实际标准；用于资金管理的手数计算）
@@ -138,6 +139,7 @@ def run_single_backtest(df, params):
     left_peak_lookback = params["left_peak_lookback"]
     zone_lower = params["zone_lower"]
     zone_upper = params["zone_upper"]
+    max_holding = params.get("max_holding_days", 0)  # 0 = 不限制
 
     upper, middle, lower, bandwidth = calc_bbands(
         df["close"].values, bb_period, bb_std, ddof=params.get("bb_ddof", 1)
@@ -192,10 +194,17 @@ def run_single_backtest(df, params):
                     h_left_idx = int(lookback_start + seg.argmax())
 
         # ---- 平仓检查（优先于开仓）----
-        if open_trade is not None and close_vals[i] <= middle[i]:
-            open_trade.close(i, df["date"].iloc[i], close_vals[i])
-            trades.append(open_trade)
-            open_trade = None
+        if open_trade is not None:
+            # 止盈：价格回到布林中轨
+            if close_vals[i] <= middle[i]:
+                open_trade.close(i, df["date"].iloc[i], close_vals[i])
+                trades.append(open_trade)
+                open_trade = None
+            # 最大持仓天数超时强平
+            elif max_holding > 0 and (i - open_trade.open_idx) >= max_holding:
+                open_trade.close(i, df["date"].iloc[i], close_vals[i])
+                trades.append(open_trade)
+                open_trade = None
 
         # ---- 阶段3：价格反弹到 H_left zone → 做空入场 ----
         if open_trade is None and mid_touched and h_left is not None:

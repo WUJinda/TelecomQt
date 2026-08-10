@@ -114,3 +114,50 @@ class AnalyticsComment(SQLModel, table=True):
     content: str = Field(default="")
     conclusion: bool = Field(default=False)          # True = 正式分析结论
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+# ============ 回测会话 ============
+
+class BacktestSession(SQLModel, table=True):
+    """回测会话，用于分组管理回测记录。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(index=True)
+    description: str = Field(default="")
+    strategy_type: str = Field(default="double_top_short")
+    status: str = Field(default="active")  # active / archived
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class BacktestSessionCreate(SQLModel):
+    """新建回测会话的输入。"""
+    name: str
+    description: str = ""
+    strategy_type: str = "double_top_short"
+
+
+class BacktestSessionUpdate(SQLModel):
+    """部分更新会话。全部字段可选。"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+
+
+# ============ 回测记录 ============
+
+class BacktestRecord(SQLModel, table=True):
+    """单次回测记录，关联到会话和文件系统中的 experiment.json。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    session_id: int = Field(foreign_key="backtestsession.id", index=True)
+    experiment_id: str                               # experiment.json 的目录名
+    experiment_path: str = Field(default="")          # 相对于 experiments 根目录的路径
+    label: str = Field(default="")
+    params_json: str = Field(default="{}")
+    total_pnl: Optional[float] = None
+    win_rate: Optional[float] = None
+    total_trades: Optional[int] = None
+    max_drawdown: Optional[float] = None
+    total_return_rate: Optional[float] = None
+    source: str = Field(default="web")           # web = 面板内回测, external = 外部推送归入
+    status: str = Field(default="completed")
+    created_at: datetime = Field(default_factory=datetime.now)
