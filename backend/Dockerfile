@@ -4,7 +4,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 
 COPY backend/app /app/app
 COPY frontend /app/frontend
