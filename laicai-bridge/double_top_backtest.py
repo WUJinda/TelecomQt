@@ -39,13 +39,13 @@ DEFAULT_PARAMS = {
     "bb_std": 2.0,
     "bandwidth_min": 0.14,        # 布林带带宽最低要求（扩张期阈值）
     "tilt_threshold": 0.008,      # 布林带平行度阈值 total_tilt < 此值时判定为水平
-    "slope_window": 5,            # 斜率计算窗口（天）
+    "slope_window": 3,            # 回归拟合窗口（周期单位时间数，日线=3个交易日）
     "left_peak_lookback": 30,     # 左峰最大回溯周期（安全阀，防止过老的峰）
     "zone_lower": 0.99,           # 左峰区域下界 = H_left * zone_lower
-    "zone_upper": 1.02,           # 左峰区域上界 = H_left * zone_upper
+    "zone_upper": 1.01,           # 左峰区域上界 = H_left * zone_upper
     "bb_ddof": 1,                 # 标准差自由度（1=样本标准差，与 pandas 默认一致）
     "fee_rate": 0.0001,           # 手续费率（双边各收一次）
-    "max_holding_days": 0,        # 最大持仓天数（0 = 不限制）
+    "max_holding_days": 20,       # 最大持仓天数，超时强制平仓（时间止损）
 }
 
 # 品种保证金率（各交易所实际标准；用于资金管理的手数计算）
@@ -122,6 +122,26 @@ class Trade:
         self.close_price = close_price
 
 
+def calc_regression_slope(values, i, window=3):
+    """对 [i-window+1, i] 窗口做线性回归（最小二乘拟合），返回斜率。
+
+    利用中心化坐标化简为加权求和：
+        斜率 = Σ(xᵢ · yᵢ) / Σ(xᵢ²)
+    其中 x 中心化后 x̄=0，ȳ 项自动消去。
+    """
+    if i < window - 1:
+        return None
+
+    y = values[i - window + 1 : i + 1]
+    n = len(y)
+    center = (n - 1) / 2
+
+    numer = sum((j - center) * y[j] for j in range(n))
+    denom = n * (n * n - 1) / 12
+
+    return numer / denom if denom != 0 else None
+
+
 def run_single_backtest(df, params):
     """对单个 DataFrame 运行双峰做空回测。
 
@@ -137,9 +157,8 @@ def run_single_backtest(df, params):
     tilt_threshold = params.get("tilt_threshold", 0.008)
     slope_window = params.get("slope_window", 5)
     left_peak_lookback = params["left_peak_lookback"]
-    zone_lower = params["zone_lower"]
     zone_upper = params["zone_upper"]
-    max_holding = params.get("max_holding_days", 0)  # 0 = 不限制
+    max_holding_days = params.get("max_holding_days", 999)
 
     upper, middle, lower, bandwidth = calc_bbands(
         df["close"].values, bb_period, bb_std, ddof=params.get("bb_ddof", 1)
@@ -152,7 +171,7 @@ def run_single_backtest(df, params):
     #   bw_qualified → mid_touched → 入场 → 平仓 → 回到初始
     #
     #   1) 联合门控(bw >= bandwidth_min AND total_tilt < tilt_threshold)：标记有资格交易
-    #      total_tilt = (|上轨斜率| + |下轨斜率|) / 中轨，衡量布林带水平程度
+    #      total_tilt = |上轨回归百分比斜率| + |下轨回归百分比斜率|，衡量布林带水平程度
     #   2) 价格回落接触中轨(close <= middle)：触发扫描，往左找 H_left
     #   3) 价格反弹到 H_left zone：做空入场（第二峰 ≈ 左峰 = 双顶）
     #   4) 价格跌回中轨：平仓止盈
@@ -170,13 +189,20 @@ def run_single_backtest(df, params):
             continue
 
         # ---- 阶段1：联合门控（带宽 + 平行度）----
-        # total_tilt = (|上轨斜率| + |下轨斜率|) / 中轨
+        # total_tilt = |上轨回归百分比斜率| + |下轨回归百分比斜率|
+        # 使用线性回归拟合窗口内所有点，再用各自均值归一化
         # 只有带宽达标且布林带水平（不倾斜）时才进入双峰扫描
         if i >= slope_window + bb_period:
-            up_slope = (upper[i] - upper[i - slope_window]) / slope_window
-            lo_slope = (lower[i] - lower[i - slope_window]) / slope_window
-            mid_val = middle[i]
-            total_tilt = (abs(up_slope) + abs(lo_slope)) / mid_val if mid_val > 0 else 999
+            up_slope = calc_regression_slope(upper, i, slope_window)
+            lo_slope = calc_regression_slope(lower, i, slope_window)
+            if up_slope is not None and lo_slope is not None:
+                up_mean = np.mean(upper[i - slope_window + 1 : i + 1])
+                lo_mean = np.mean(lower[i - slope_window + 1 : i + 1])
+                up_pct = abs(up_slope) / up_mean if up_mean > 0 else 999
+                lo_pct = abs(lo_slope) / lo_mean if lo_mean > 0 else 999
+                total_tilt = up_pct + lo_pct
+            else:
+                total_tilt = 999
         else:
             total_tilt = 999
 
@@ -194,29 +220,29 @@ def run_single_backtest(df, params):
                     h_left_idx = int(lookback_start + seg.argmax())
 
         # ---- 平仓检查（优先于开仓）----
-        if open_trade is not None:
-            # 止盈：价格回到布林中轨
-            if close_vals[i] <= middle[i]:
-                open_trade.close(i, df["date"].iloc[i], close_vals[i])
-                trades.append(open_trade)
-                open_trade = None
-            # 最大持仓天数超时强平
-            elif max_holding > 0 and (i - open_trade.open_idx) >= max_holding:
-                open_trade.close(i, df["date"].iloc[i], close_vals[i])
-                trades.append(open_trade)
-                open_trade = None
+        # 1) 止盈：价格跌到中轨与下轨中间点
+        tp_midpoint = (middle[i] + lower[i]) / 2
+        if open_trade is not None and close_vals[i] <= tp_midpoint:
+            open_trade.close(i, df["date"].iloc[i], close_vals[i])
+            trades.append(open_trade)
+            open_trade = None
+        # 2) 时间止损：持仓超过 max_holding_days 天，强制平仓
+        elif open_trade is not None and (i - open_trade.open_idx) >= max_holding_days:
+            open_trade.close(i, df["date"].iloc[i], close_vals[i])
+            trades.append(open_trade)
+            open_trade = None
 
         # ---- 阶段3：价格反弹到 H_left zone → 做空入场 ----
         if open_trade is None and mid_touched and h_left is not None:
             # 左峰过期检查：距锁定时已超过 lookback 窗口 → 作废，重新走状态机
             if i - h_left_idx > left_peak_lookback:
+                bw_qualified = False
                 mid_touched = False
                 h_left = None
                 h_left_idx = None
             else:
-                zone_lo = h_left * zone_lower
-                zone_hi = h_left * zone_upper
-                if zone_lo <= close_vals[i] <= zone_hi:
+                trigger_price = h_left * zone_upper
+                if close_vals[i] >= trigger_price:
                     price = close_vals[i]
                     # 保证金口径：每手保证金 = price * multiplier * margin_rate
                     margin_per_lot = price * volume_multiple * margin_rate
