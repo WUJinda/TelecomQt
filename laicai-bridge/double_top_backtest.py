@@ -38,7 +38,7 @@ DEFAULT_PARAMS = {
     "bb_period": 20,
     "bb_std": 2.0,
     "bandwidth_min": 0.14,        # 布林带带宽最低要求（扩张期阈值）
-    "tilt_threshold": 0.008,      # 布林带平行度阈值 total_tilt < 此值时判定为水平
+    "tilt_threshold": 0.006,      # 布林带平行度阈值 total_tilt < 此值时判定为水平（新算法校准值）
     "slope_window": 3,            # 回归拟合窗口（周期单位时间数，日线=3个交易日）
     "left_peak_lookback": 30,     # 左峰最大回溯周期（安全阀，防止过老的峰）
     "zone_lower": 0.99,           # 左峰区域下界 = H_left * zone_lower
