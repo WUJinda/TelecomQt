@@ -1,0 +1,16 @@
+# 同步自 .gitignore：防止本地数据/环境进 README 目录树
+.venv/
+market-data/.venv/
+__pycache__/
+*.pyc
+backend/data/experiments/*/
+backend/data/app.db
+market-data/store/
+market-data/exports/
+market-data/.env
+.claude/
+.idea/
+.vscode/
+.DS_Store
+deploy/gitea/
+node_modules/
